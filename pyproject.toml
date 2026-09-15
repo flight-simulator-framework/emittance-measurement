@@ -14,8 +14,8 @@ dependencies = [
     "pandas>=3.0.2,<4",
     "torch>=2.7.1,<3",
     "scikit-learn>=1.8.0,<2",
-    "machine-interfaces[epics,madx,rftrack,tao]>=0.1.0,<0.2.0",
-    "flight-response-matrix>=0.1.0,<0.2.0"
+    "machine-interfaces[epics,madx,rftrack,tao] @ git+https://gitlab.cern.ch/flight-simulator/machine-interfaces.git@54490bf072d3db26d98383eeeced1a759e1d4bbb",
+    "flight-response-matrix @ git+https://gitlab.cern.ch/flight-simulator/response-matrix.git@61de1dfd2719999c01ed613726483132ff9654ca"
 ]
 
 [project.optional-dependencies]
@@ -27,10 +27,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 packages = [{include = "emittance_measurement"}, {include = "Emittance_Measurement_GUI.py"}, {include = "DatasetGenerator_ModelTrainer_EM_GUI.py"}]
-
-[tool.poetry.dependencies]
-machine-interfaces = {path = "../machine-interfaces", develop = true, extras = ["epics", "madx", "rftrack", "tao"]}
-flight-response-matrix = {path = "../response-matrix", develop = true}
 
 [tool.flight-simulator.migration]
 status = "local-execution-ready"

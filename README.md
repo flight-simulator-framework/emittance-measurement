@@ -28,12 +28,16 @@ Optional fit controls also allow quadrupole strength, transverse offset, roll an
 
 ## Installation and startup
 
-Use Python 3.11 or newer and Poetry 2 or newer; the local setup was tested with Python 3.13. Keep this repository and `machine-interfaces`, `response-matrix` in the same parent directory. From this repository, run:
+Use Python 3.11 or newer and Poetry 2 or newer.
 
 ```bash
+git clone https://gitlab.cern.ch/flight-simulator/emittance-measurement.git
+cd emittance-measurement
 poetry install
 poetry run python Emittance_Measurement_GUI.py
 ```
+
+Poetry downloads and installs the required Python dependencies automatically.
 
 Other entry files, using the same interpreter:
 
