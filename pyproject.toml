@@ -1,0 +1,31 @@
+[project]
+name = "flight-emittance-measurement"
+version = "0.1.0"
+description = "Emittance measurement, quadrupole scans and model training."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "wmalek", email = "wiktoria.malek@cern.ch"}]
+dependencies = [
+    "numpy>=2.4.2,<3",
+    "matplotlib>=3.10.8,<4",
+    "PyQt6>=6.10.2,<7",
+    "scipy>=1.17.1,<2",
+    "rf-track>=2.6.2,<3",
+    "pandas>=3.0.2,<4",
+    "torch>=2.7.1,<3",
+    "scikit-learn>=1.8.0,<2"
+]
+
+[project.optional-dependencies]
+atf2-examples = ["pyepics>=1.0,<4"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
+
+[tool.flight-simulator.migration]
+status = "file-layout-prepared-import-migration-pending"
+repository-dependencies = ["machine-interfaces", "response-matrix"]
