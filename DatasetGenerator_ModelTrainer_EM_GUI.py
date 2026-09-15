@@ -1,3 +1,4 @@
+import emittance_measurement
 import RF_Track as rft # do not touch this
 import os, sys, time
 from datetime import datetime
@@ -18,10 +19,10 @@ except ImportError:
     )
     from PyQt5.QtCore import Qt, QTimer, QRect, QObject, QThread, pyqtSignal
     from PyQt5.QtGui import QPainter, QPixmap, QFont
-from Backend.SaveOrLoad import SaveOrLoad
-from MachineLearning.ML_dataset import generate_dataset, _get_interface_initial_settings, append_dataset
-from MachineLearning.R_matrix_dataset import generate_dataset as generate_linear_response_dataset
-from MachineLearning.ML_train import TrainModel
+from machine_interfaces.Backend.SaveOrLoad import SaveOrLoad
+from emittance_measurement.MachineLearning.ML_dataset import generate_dataset, _get_interface_initial_settings, append_dataset
+from emittance_measurement.MachineLearning.R_matrix_dataset import generate_dataset as generate_linear_response_dataset
+from emittance_measurement.MachineLearning.ML_train import TrainModel
 
 class SPositionDelegate(QStyledItemDelegate):
     S_ROLE = int(Qt.ItemDataRole.UserRole) + 1
@@ -166,7 +167,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
         self.interface = interface
         self.dir_name = dir_name
         self.session = None
-        ui_path = os.path.join(os.path.dirname(__file__), "UI files/DatasetGenerator_ModelTrainer_EM_GUI.ui")
+        ui_path = os.path.join(os.path.dirname(emittance_measurement.__file__), "UI files/DatasetGenerator_ModelTrainer_EM_GUI.ui")
         uic.loadUi(ui_path, self)
         self._load_logo()
         self.start_generation_button.clicked.connect(self._run_generating)
@@ -307,7 +308,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
             if pyqt_version == 6
             else Qt.SmoothTransformation
         )
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.dirname(emittance_measurement.__file__)
         logo_path = os.path.join(base_dir, "UI files", "Assets", "CERN_logo.png")
         if not os.path.isfile(logo_path):
             return
@@ -375,7 +376,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
             screens_folder = "screens_" + "-".join(str(screen) for screen in screens)
 
         return os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
+            os.path.dirname(emittance_measurement.__file__),
             "MachineLearning",
             self._get_machine_ml_folder_name(),
             str(quad_name),
@@ -512,7 +513,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
         if not output_dir:
             if linear_response:
                 output_dir = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)), "MachineLearning",
+                    os.path.dirname(emittance_measurement.__file__), "MachineLearning",
                     self._get_machine_ml_folder_name(), str(quad_name),
                 )
             else:
@@ -668,7 +669,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    from Backend import SelectInterface
+    from machine_interfaces.Backend import SelectInterface
     interface = SelectInterface.choose_acc_and_interface()
 
     if interface is None:

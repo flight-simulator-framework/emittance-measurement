@@ -31,15 +31,11 @@ def screens_folder_name(screens):
 def get_ml_model_file(machine_name, quad_name, screens):
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
     return project_root / "MachineLearning" / str(machine_name) / str(quad_name) / screens_folder_name(screens) / "EM_model.pt"
 
 def get_ml_dataset_file(machine_name, quad_name, screens):
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
     return project_root / "MachineLearning" / str(machine_name) / str(quad_name) / screens_folder_name(screens) / "EM_dataset.npz"
 
 try:

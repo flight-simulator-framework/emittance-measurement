@@ -8,7 +8,7 @@ except ImportError:
     from PyQt5.QtWidgets import (QVBoxLayout, QDialog, QLabel, QPlainTextEdit)
     from PyQt5 import uic
 
-BOUNDS_POPUP_UI = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "UI files", "BoundsPopup.ui"))
+BOUNDS_POPUP_UI = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "UI files", "BoundsPopup.ui"))
 
 class BoundsForParameter(QDialog):
     def __init__(self, parameter_name, parent=None, unit="", hint=""):

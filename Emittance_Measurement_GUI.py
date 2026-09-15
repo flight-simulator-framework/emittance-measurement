@@ -1,3 +1,4 @@
+import emittance_measurement
 import RF_Track as rft  # do not touch this import!
 import os, sys, time
 import numpy as np
@@ -21,22 +22,22 @@ except ImportError:
 import matplotlib
 
 matplotlib.use("QtAgg")
-from Interfaces.interface_setup import INTERFACE_SETUP
+from machine_interfaces.Interfaces.interface_setup import INTERFACE_SETUP
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from Backend.SaveOrLoad import SaveOrLoad
-from Backend.State import State
-from Backend.EmittanceComputingEngines.select_engine import EmittanceComputingEngineSelector
-from Backend.EM_helpers.QuadrupoleScan import QuadrupoleScan
-from Backend.LogConsole import LogConsole
-# from Backend.EM_helpers.PhaseSpaceGraphs import PhaseSpaces
-from Backend.EM_helpers.ShowBeamline import ShowBeamline
-from Backend.EM_helpers.DisplayScreenImages import DisplayScreenImages
-from Backend.EM_helpers.EmittanceEvolution import EmittanceEvolution
-from Backend.EM_helpers.FitBounds import BoundsForParameter
-from Backend.EM_helpers.ScanCurrentRanges import ScanCurrentRanges
-from Backend.EM_helpers.ScanPointSelection import ScanPointSelection
-from Backend.EM_helpers.QuadrupoleModelUpdate import load_model_quadrupoles, quadrupole_tracking_model, quadrupole_status_metadata, save_quadrupole_status
+from machine_interfaces.Backend.SaveOrLoad import SaveOrLoad
+from machine_interfaces.Backend.State import State
+from emittance_measurement.EmittanceComputingEngines.select_engine import EmittanceComputingEngineSelector
+from emittance_measurement.EM_helpers.QuadrupoleScan import QuadrupoleScan
+from machine_interfaces.Backend.LogConsole import LogConsole
+# from emittance_measurement.EM_helpers.PhaseSpaceGraphs import PhaseSpaces
+from emittance_measurement.EM_helpers.ShowBeamline import ShowBeamline
+from emittance_measurement.EM_helpers.DisplayScreenImages import DisplayScreenImages
+from emittance_measurement.EM_helpers.EmittanceEvolution import EmittanceEvolution
+from emittance_measurement.EM_helpers.FitBounds import BoundsForParameter
+from emittance_measurement.EM_helpers.ScanCurrentRanges import ScanCurrentRanges
+from emittance_measurement.EM_helpers.ScanPointSelection import ScanPointSelection
+from emittance_measurement.EM_helpers.QuadrupoleModelUpdate import load_model_quadrupoles, quadrupole_tracking_model, quadrupole_status_metadata, save_quadrupole_status
 
 class ComputationMode(Enum):
     LRM = "Linear R-response model"
@@ -192,7 +193,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self._general_session_dir = dir_name
         self.is_simulation = is_simulation
         self.session = None
-        ui_path = os.path.join(os.path.dirname(__file__), "UI files/Emittance_Measurement_GUI.ui")
+        ui_path = os.path.join(os.path.dirname(emittance_measurement.__file__), "UI files/Emittance_Measurement_GUI.ui")
         uic.loadUi(ui_path, self)
         self._make_settings_panel_scrollable()
         QTimer.singleShot(0, self.showMaximized)
@@ -929,7 +930,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
                           if pyqt_version == 6
                           else Qt.SmoothTransformation
                           )
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.dirname(emittance_measurement.__file__)
         logo_path = os.path.join(base_dir, "UI files", "Assets", "CERN_logo.png")
         if not os.path.isfile(logo_path):
             return
@@ -1888,7 +1889,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    from Backend import SelectInterface
+    from machine_interfaces.Backend import SelectInterface
 
     dialog = SelectInterface.choose_acc_and_interface()
     if dialog is None:

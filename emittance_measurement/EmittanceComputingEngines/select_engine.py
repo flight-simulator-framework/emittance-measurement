@@ -1,7 +1,7 @@
-from MachineLearning.ML_train import get_ml_model_file
-from Backend.EmittanceComputingEngines.linear_response_engine import LinearResponseEngine
-from Backend.EmittanceComputingEngines.rft_tracking_engine import RFTrackEngine
-from Backend.EmittanceComputingEngines.ml_engine import MLEngine
+from emittance_measurement.MachineLearning.ML_train import get_ml_model_file
+from emittance_measurement.EmittanceComputingEngines.linear_response_engine import LinearResponseEngine
+from emittance_measurement.EmittanceComputingEngines.rft_tracking_engine import RFTrackEngine
+from emittance_measurement.EmittanceComputingEngines.ml_engine import MLEngine
 
 class EmittanceComputingEngineSelector:
     @staticmethod

@@ -1,5 +1,5 @@
-from MachineLearning.ML_train import MLInterface
-from Backend.EmittanceComputingEngines.rft_tracking_engine import RFTrackEngine
+from emittance_measurement.MachineLearning.ML_train import MLInterface
+from emittance_measurement.EmittanceComputingEngines.rft_tracking_engine import RFTrackEngine
 
 
 class MLEngine(RFTrackEngine):

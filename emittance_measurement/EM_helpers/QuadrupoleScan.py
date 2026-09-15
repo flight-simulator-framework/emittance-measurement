@@ -1,7 +1,7 @@
 import os, sys, matplotlib, pickle, time
 from datetime import datetime
-from Backend.ResponseMatrix_DFS_WFS import ResponseMatrix_DFS_WFS
-from Backend.State import State
+from response_matrix.ResponseMatrix_DFS_WFS import ResponseMatrix_DFS_WFS
+from machine_interfaces.Backend.State import State
 import numpy as np
 matplotlib.use("QtAgg")
 try:
@@ -21,7 +21,7 @@ except ImportError:
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from scipy.optimize import least_squares
-from Backend.SaveOrLoad import SaveOrLoad
+from machine_interfaces.Backend.SaveOrLoad import SaveOrLoad
 
 class QuadrupoleScan(SaveOrLoad):
     def _new_scan_session_dir(self, quad_names, is_quad_scan):

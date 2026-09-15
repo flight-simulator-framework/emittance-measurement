@@ -11,7 +11,7 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from Backend.draw_beamline_script import drawBeamline
+from emittance_measurement.draw_beamline_script import drawBeamline
 
 class ShowBeamline(QDialog):
     def __init__(self, interface, parent=None, quad_selected=None, screens = None):

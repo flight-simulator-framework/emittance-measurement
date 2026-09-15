@@ -1,7 +1,7 @@
 import numpy as np
 import os
-from Backend.EM_helpers.LinearResponse import LinearResponse
-from Backend.EmittanceComputingEngines.AbstractComputingEngine import AbstractComputingEngine
+from emittance_measurement.EM_helpers.LinearResponse import LinearResponse
+from emittance_measurement.EmittanceComputingEngines.AbstractComputingEngine import AbstractComputingEngine
 
 class LinearResponseEngine(AbstractComputingEngine):
 
@@ -42,7 +42,7 @@ class LinearResponseEngine(AbstractComputingEngine):
         if not np.isfinite(beta_gamma) or beta_gamma <= 0:
             raise RuntimeError("Invalid beam factors")
 
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         machine_name = getattr(self.interface, "machine_name", [])
         coefficients_path = os.path.join(project_root, "MachineLearning", str(machine_name), str(quad_name), "Linear_Response_coefficients.npz")
         dataset_path = os.path.join(project_root, "MachineLearning", str(machine_name), str(quad_name), "Linear_Response_dataset.npz")

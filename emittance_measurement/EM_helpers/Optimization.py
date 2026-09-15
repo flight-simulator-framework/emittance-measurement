@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares
 import pandas as pd
-from Backend.EM_helpers.CheckLinearOptics import estimate_twiss_use_linear_optics_start, CheckLinearOpticsUnavailable
+from emittance_measurement.EM_helpers.CheckLinearOptics import estimate_twiss_use_linear_optics_start, CheckLinearOpticsUnavailable
 
 def _finite_diff_jacobian(residual_func, x, low, high, param_scale=None, rel_step=1e-4):
     x = np.asarray(x, dtype=float)

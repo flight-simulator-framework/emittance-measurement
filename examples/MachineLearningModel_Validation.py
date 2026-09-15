@@ -7,8 +7,8 @@ while not (project_root_path / "Interfaces").exists() and project_root_path.pare
 sys.path.insert(0, str(project_root_path))
 os.chdir(project_root_path)
 
-from Interfaces.ATF2.InterfaceATF2_Ext_RFTrack import InterfaceATF2_Ext_RFTrack
-from MachineLearning.ML_train import MLInterface
+from machine_interfaces.Interfaces.ATF2.InterfaceATF2_Ext_RFTrack import InterfaceATF2_Ext_RFTrack
+from emittance_measurement.MachineLearning.ML_train import MLInterface
 
 
 QUAD_NAME = "QF17X"

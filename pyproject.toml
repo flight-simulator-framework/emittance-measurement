@@ -13,7 +13,9 @@ dependencies = [
     "rf-track>=2.6.2,<3",
     "pandas>=3.0.2,<4",
     "torch>=2.7.1,<3",
-    "scikit-learn>=1.8.0,<2"
+    "scikit-learn>=1.8.0,<2",
+    "machine-interfaces[epics,madx,rftrack,tao]>=0.1.0,<0.2.0",
+    "flight-response-matrix>=0.1.0,<0.2.0"
 ]
 
 [project.optional-dependencies]
@@ -24,8 +26,12 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-package-mode = false
+packages = [{include = "emittance_measurement"}, {include = "Emittance_Measurement_GUI.py"}, {include = "DatasetGenerator_ModelTrainer_EM_GUI.py"}]
+
+[tool.poetry.dependencies]
+machine-interfaces = {path = "../machine-interfaces", develop = true, extras = ["epics", "madx", "rftrack", "tao"]}
+flight-response-matrix = {path = "../response-matrix", develop = true}
 
 [tool.flight-simulator.migration]
-status = "file-layout-prepared-import-migration-pending"
+status = "local-execution-ready"
 repository-dependencies = ["machine-interfaces", "response-matrix"]

@@ -26,10 +26,15 @@ Optional fit controls also allow quadrupole strength, transverse offset, roll an
 - `Emittance_Measurement_GUI.py`: scan acquisition, loading measurements, fitting and visualization.
 - `DatasetGenerator_ModelTrainer_EM_GUI.py`: generate simulated scan datasets and train the machine learning models used by the measurement GUI. Select the quadrupoles and screens, configure the dataset generation or training settings, and choose an output directory.
 
-## Installation
+## Installation and startup
 
-Use Python 3.11 or newer and Poetry 2 or newer. From the repository directory, install the dependencies:
+Use Python 3.11 or newer and Poetry 2 or newer; the local setup was tested with Python 3.13. Keep this repository and `machine-interfaces`, `response-matrix` in the same parent directory. From this repository, run:
 
 ```bash
 poetry install
+poetry run python Emittance_Measurement_GUI.py
 ```
+
+Other entry files, using the same interpreter:
+
+- `DatasetGenerator_ModelTrainer_EM_GUI.py`

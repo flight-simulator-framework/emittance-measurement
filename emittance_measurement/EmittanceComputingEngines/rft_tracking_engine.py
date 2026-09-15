@@ -1,5 +1,5 @@
-from Backend.EM_helpers.Optimization import Optimization
-from Backend.EmittanceComputingEngines.AbstractComputingEngine import AbstractComputingEngine
+from emittance_measurement.EM_helpers.Optimization import Optimization
+from emittance_measurement.EmittanceComputingEngines.AbstractComputingEngine import AbstractComputingEngine
 
 
 class RFTrackEngine(AbstractComputingEngine):

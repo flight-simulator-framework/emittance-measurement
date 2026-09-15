@@ -1,6 +1,6 @@
 import RF_Track as rft
 import numpy as np
-from Interfaces.ATF2.InterfaceATF2_Ext_RFTrack import InterfaceATF2_Ext_RFTrack
+from machine_interfaces.Interfaces.ATF2.InterfaceATF2_Ext_RFTrack import InterfaceATF2_Ext_RFTrack
 
 I = InterfaceATF2_Ext_RFTrack()
 quad_name = "QF17X"
@@ -24,7 +24,7 @@ print("Result from RF-Track:")
 print(f"K1L_0: {K1L_0}")
 
 
-from Interfaces.ATF2.InterfaceATF2_Ext import InterfaceATF2_Ext
+from machine_interfaces.Interfaces.ATF2.InterfaceATF2_Ext import InterfaceATF2_Ext
 
 I2 = InterfaceATF2_Ext()
 #K1L_0_2 = I2.current_to_k1('QD18X', 31.7475)
