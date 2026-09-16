@@ -335,7 +335,7 @@ files = []
 develop = false
 
 [package.dependencies]
-machine-interfaces = {git = "https://gitlab.cern.ch/flight-simulator/machine-interfaces.git", rev = "54490bf072d3db26d98383eeeced1a759e1d4bbb"}
+machine-interfaces = {git = "https://gitlab.cern.ch/flight-simulator/machine-interfaces.git", rev = "1fa7fca06f949e085353030f59587a68de7e3baf"}
 matplotlib = ">=3.10.8,<4"
 numpy = ">=2.4.2,<3"
 PyQt6 = ">=6.10.2,<7"
@@ -343,8 +343,8 @@ PyQt6 = ">=6.10.2,<7"
 [package.source]
 type = "git"
 url = "https://gitlab.cern.ch/flight-simulator/response-matrix.git"
-reference = "61de1dfd2719999c01ed613726483132ff9654ca"
-resolved_reference = "61de1dfd2719999c01ed613726483132ff9654ca"
+reference = "7d8b2b3199e55807758e32e6c08a258b6bbbd63f"
+resolved_reference = "7d8b2b3199e55807758e32e6c08a258b6bbbd63f"
 
 [[package]]
 name = "fonttools"
@@ -759,8 +759,8 @@ tao = ["pytao (>=0.5,<2)"]
 [package.source]
 type = "git"
 url = "https://gitlab.cern.ch/flight-simulator/machine-interfaces.git"
-reference = "54490bf072d3db26d98383eeeced1a759e1d4bbb"
-resolved_reference = "54490bf072d3db26d98383eeeced1a759e1d4bbb"
+reference = "1fa7fca06f949e085353030f59587a68de7e3baf"
+resolved_reference = "1fa7fca06f949e085353030f59587a68de7e3baf"
 
 [[package]]
 name = "markdown-it-py"
@@ -3058,4 +3058,4 @@ atf2-examples = ["pyepics"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "01d5ade6a1a811b0bcbffff3aa768a4028e0521952fa9d87e94b0186d65d96f2"
+content-hash = "17834105082bd7126f316190a549c372e731477fc4d29b839ef03b6c7a47d2d6"

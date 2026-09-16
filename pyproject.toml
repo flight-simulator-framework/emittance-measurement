@@ -14,8 +14,8 @@ dependencies = [
     "pandas>=3.0.2,<4",
     "torch>=2.7.1,<3",
     "scikit-learn>=1.8.0,<2",
-    "machine-interfaces[epics,madx,rftrack,tao] @ git+https://gitlab.cern.ch/flight-simulator/machine-interfaces.git@54490bf072d3db26d98383eeeced1a759e1d4bbb",
-    "flight-response-matrix @ git+https://gitlab.cern.ch/flight-simulator/response-matrix.git@61de1dfd2719999c01ed613726483132ff9654ca"
+    "machine-interfaces[epics,madx,rftrack,tao] @ git+https://gitlab.cern.ch/flight-simulator/machine-interfaces.git@1fa7fca06f949e085353030f59587a68de7e3baf",
+    "flight-response-matrix @ git+https://gitlab.cern.ch/flight-simulator/response-matrix.git@7d8b2b3199e55807758e32e6c08a258b6bbbd63f"
 ]
 
 [project.optional-dependencies]
