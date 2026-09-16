@@ -598,6 +598,8 @@ class Optimization:
             ls_eval[0] += 1
             self._emit_progress("Least squares", min(ls_eval[0], 200), 200)
             params = dict(zip(params_order, p_c))
+            cost_unweighted = float(np.sum((residuals * u) ** 2))
+            print(f"Least squares {ls_eval[0]}: cost_unweighted={cost_unweighted:.4g}, " + ", ".join(f"{k}={v:.6g}" for k, v in params.items()), flush=True)
 
             return residuals
 

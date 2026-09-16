@@ -202,7 +202,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.session_directory.setText(dir_name)
         self.start_optimization_button.clicked.connect(self._run_optimization)
         self.stop_optimization_button.clicked.connect(self._stop_optimization)
-        self.setWindowTitle("Emittance Measurement GUI")
+        self.setWindowTitle(f"Emittance Measurement GUI — {self.interface.get_name()}")
         self.fitResultsVBox.setStretch(0, 0)
         self.fitResultsVBox.setStretch(1, 1)
         self.progressBar.setValue(0)
