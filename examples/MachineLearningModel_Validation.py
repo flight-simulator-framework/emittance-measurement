@@ -16,10 +16,10 @@ SCREENS = ["OTR0X", "OTR1X", "OTR2X", "OTR3X"]
 REFERENCE_SCREEN = "OTR0X"
 
 # QF17X
-K1_VALUES = np.array([0.9088758826255798, 0.9593689441680908, 1.0098620653152466, 1.060355305671692, 1.1108481884002686], dtype=float)
+QUAD_SETTING_VALUES = np.array([0.9088758826255798, 0.9593689441680908, 1.0098620653152466, 1.060355305671692, 1.1108481884002686], dtype=float)
 
 # QD18X
-# K1_VALUES = np.array( [-0.5077778100967407, -0.5924074053764343, -0.6770371198654175, -0.7616666555404663, -0.8462962508201599], dtype=float)
+# QUAD_SETTING_VALUES = np.array( [-0.5077778100967407, -0.5924074053764343, -0.6770371198654175, -0.7616666555404663, -0.8462962508201599], dtype=float)
 
 # # QF17X real machine solution
 # RFT_SOLUTION = {
@@ -67,12 +67,12 @@ def print_plane_results(name, ml_sigma, rft_sigma):
     for screen_index, screen in enumerate(SCREENS):
         print(f"\n{screen}")
 
-        for k1_index, k1 in enumerate(K1_VALUES):
+        for setting_index, quad_setting in enumerate(QUAD_SETTING_VALUES):
             print(
-                f"K1={k1: .8f} | "
-                f"RFTrack sigma={rft_sigma[k1_index, screen_index]:.8g} | "
-                f"ML sigma={ml_sigma[k1_index, screen_index]:.8g} | "
-                f"error sigma2={100.0 * error[k1_index, screen_index]:.3f}%"
+                f"Quadrupole setting={quad_setting: .8f} | "
+                f"RFTrack sigma={rft_sigma[setting_index, screen_index]:.8g} | "
+                f"ML sigma={ml_sigma[setting_index, screen_index]:.8g} | "
+                f"error sigma2={100.0 * error[setting_index, screen_index]:.3f}%"
             )
 
         screen_error = error[:, screen_index]
@@ -96,9 +96,9 @@ def print_plane_results(name, ml_sigma, rft_sigma):
 
 
 def main():
-    if K1_VALUES.size == 0:
+    if QUAD_SETTING_VALUES.size == 0:
         raise RuntimeError(
-            "K1L_VALUES is empty. Paste the exact K1L values from the session."
+            "QUAD_SETTING_VALUES is empty. Paste the exact quadrupole settings from the session."
         )
 
     rft_interface = InterfaceATF2_Ext_RFTrack()
@@ -113,7 +113,7 @@ def main():
     common_arguments = {
         "quad_name": QUAD_NAME,
         "screens": SCREENS,
-        "K1L_values": K1_VALUES,
+        "quad_setting_values": QUAD_SETTING_VALUES,
         "emit_x": RFT_SOLUTION["emit_x"],
         "beta_x0": RFT_SOLUTION["beta_x0"],
         "alpha_x0": RFT_SOLUTION["alpha_x0"],
@@ -138,7 +138,7 @@ def main():
     ml_sigx = np.asarray(ml_sigx, dtype=float)
     ml_sigy = np.asarray(ml_sigy, dtype=float)
 
-    expected_shape = (len(K1_VALUES), len(SCREENS))
+    expected_shape = (len(QUAD_SETTING_VALUES), len(SCREENS))
 
     for name, array in [
         ("rft_sigx", rft_sigx),

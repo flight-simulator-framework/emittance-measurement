@@ -20,7 +20,7 @@ def _solve_plane(R1, R2, sigma, u, valid):
                                     2.0 * R1 * R2,
                                     R2 ** 2])
     twiss_parameters_joint, _, rank, _ = np.linalg.lstsq(coefficients / u_sigma2[:, None], sigma2 / u_sigma2, rcond=None)
-    if rank < 3: raise CheckLinearOpticsUnavailable("K1L scan is too small or too few distinct points. Please do a wider scan, or with more steps.")
+    if rank < 3: raise CheckLinearOpticsUnavailable("Quadrupole scan is too small or too few distinct points. Please do a wider scan, or with more steps.")
 
     eps_beta, eps_alpha, eps_gamma = twiss_parameters_joint
     # beta*gamma - alpha^2 = 1 ---- * eps^2
@@ -53,9 +53,9 @@ def _solve_plane(R1, R2, sigma, u, valid):
             f"Estimate is unphysical (eps_beta={eps_beta:.4g}, eps_gamma={eps_gamma:.4g}, det={eps_squared:.4g}):")
     return emit_geom, beta0, alpha0, reduced_chi2, unconstrained_is_physical
 
-def estimate_twiss_use_linear_optics_start(interface, quad_name, screens, K1L_values, sig_x, sig_y, u_x, u_y, valid_x, valid_y, beta_gamma):
+def estimate_twiss_use_linear_optics_start(interface, quad_name, screens, quad_setting_values, sig_x, sig_y, u_x, u_y, valid_x, valid_y, beta_gamma):
 
-    transport = interface.get_R_matrix_scan(quad_name=quad_name, screens=screens, K1L_values=K1L_values)
+    transport = interface.get_R_matrix_scan(quad_name=quad_name, screens=screens, quad_setting_values=quad_setting_values)
     R11, R12 = np.asarray(transport["R11"], dtype=float), np.asarray(transport["R12"], dtype=float)
     R33, R34 = np.asarray(transport["R33"], dtype=float), np.asarray(transport["R34"], dtype=float)
 

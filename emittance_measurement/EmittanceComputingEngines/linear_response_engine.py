@@ -11,7 +11,7 @@ class LinearResponseEngine(AbstractComputingEngine):
     def fit_from_session(self, session, bounds=None):
         screens = list(session.get("screens", []))
         quad_name = session.get("quad_name")
-        K1L_values = np.asarray(session.get("K1L_values", []), dtype=float)
+        quad_setting_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
 
         sigx = np.asarray(session.get("sigx_mean", []), dtype=float)
         sigy = np.asarray(session.get("sigy_mean", []), dtype=float)
@@ -20,19 +20,19 @@ class LinearResponseEngine(AbstractComputingEngine):
             raise ValueError("Session does not contain quad_name")
         if len(screens) < 3:
             raise RuntimeError("Direct linear R-response fit requires at least 3 screens.")
-        if K1L_values.size != 1:
-            raise RuntimeError("Direct linear R-response fit works only for fixed K1L, so use steps = 0.")
+        if quad_setting_values.size != 1:
+            raise RuntimeError("Direct linear R-response fit works only for a fixed quadrupole setting, so use steps = 0.")
         if sigx.ndim != 2 or sigy.ndim != 2:
             raise ValueError("Invalid sigma array shape")
         if sigx.shape != sigy.shape:
             raise ValueError("sigx and sigy shapes do not match")
-        if sigx.shape[0] != K1L_values.size:
-            raise ValueError("K1L_values and sigma arrays have incompatible lengths")
+        if sigx.shape[0] != quad_setting_values.size:
+            raise ValueError("quad_setting_values and sigma arrays have incompatible lengths")
 
         try:
-            quad_k1l_0_readback = float(session.get("K1L_0", K1L_values[0]))
+            quad_setting_0_readback = float(session.get("initial_quadrupole_setting", quad_setting_values[0]))
         except Exception:
-            quad_k1l_0_readback = float(K1L_values[0])
+            quad_setting_0_readback = float(quad_setting_values[0])
 
         sigma2_x = np.asarray(sigx ** 2, dtype=float)
         sigma2_y = np.asarray(sigy ** 2, dtype=float)
@@ -72,7 +72,7 @@ class LinearResponseEngine(AbstractComputingEngine):
             "fit_quadrupole_strength": False,
             "fit_quad_offset": False,
             "fit_quad_roll": False,
-            "quad_k1l_0": quad_k1l_0_readback,
+            "quad_setting_0": quad_setting_0_readback,
             "fit_method": self.name,
             "prediction_observable": "sigma2",
         }

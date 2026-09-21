@@ -111,8 +111,8 @@ class Optimization:
         print("Starting to fit Twiss parameters and emittance...")
         screens = list(session.get("screens", []))
         quad_name = session.get("quad_name")
-        K1L_values = np.asarray(session.get("K1L_values", []), dtype=float)
-        quad_k1l_0_readback = np.asarray(session.get("K1L_0", K1L_values[len(K1L_values)//2] if K1L_values.size else np.nan))
+        quad_setting_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
+        quad_setting_0_readback = np.asarray(session.get("initial_quadrupole_setting", quad_setting_values[len(quad_setting_values)//2] if quad_setting_values.size else np.nan))
         sigx = np.asarray(session.get("sigx_mean", []), dtype=float)
         sigy = np.asarray(session.get("sigy_mean", []), dtype=float)
         sigx_shots = np.asarray(session.get("sigx_shots", []), dtype=float)
@@ -136,7 +136,7 @@ class Optimization:
         fit_y = None
 
         try:
-            joint_fit = self._fit_6d(screens=screens, quad_name=quad_name, K1L_values=K1L_values, sigx_shots=sigx_shots, sigy_shots=sigy_shots,
+            joint_fit = self._fit_6d(screens=screens, quad_name=quad_name, quad_setting_values=quad_setting_values, sigx_shots=sigx_shots, sigy_shots=sigy_shots,
                                       x_shots=x_shots, y_shots=y_shots, sigxy_shots=sigxy_shots, bounds = bounds)
 
             fit_x = {
@@ -201,7 +201,7 @@ class Optimization:
         alpha_x0_err = float(err_dict.get("alpha_x0", np.nan))
         beta_y0_err = float(err_dict.get("beta_y0", np.nan))
         alpha_y0_err = float(err_dict.get("alpha_y0", np.nan))
-        quad_k1l_0_err = float(err_dict.get("quad_k1l_0", np.nan))
+        quad_setting_0_err = float(err_dict.get("quad_setting_0", np.nan))
         quad_dx0_err = float(err_dict.get("quad_dx0", np.nan)) * 1e3 # mm
         quad_dy0_err = float(err_dict.get("quad_dy0", np.nan)) * 1e3 # mm
         quad_roll_err = float(err_dict.get("quad_roll", np.nan)) * 1e3 # mrad
@@ -231,10 +231,10 @@ class Optimization:
             "fit_quad_offset": bool(self.fit_quad_offset),
             "fit_quad_roll": bool(self.fit_quad_roll),
             "fit_energy_pref": bool(self.fit_energy_pref),
-            "quad_k1l_0": (
-                float(joint_fit.get("quad_k1l_0", np.nan))
+            "quad_setting_0": (
+                float(joint_fit.get("quad_setting_0", np.nan))
                 if bool(self.fit_quadrupole_strength) and isinstance(joint_fit, dict)
-                else quad_k1l_0_readback
+                else quad_setting_0_readback
             ),
             "quad_dx0": (float(joint_fit.get("quad_dx0", np.nan)) * 1e3 if bool(self.fit_quad_offset) and isinstance(joint_fit, dict) else np.nan),  # mm
             "quad_dy0": (float(joint_fit.get("quad_dy0", np.nan)) * 1e3 if bool(self.fit_quad_offset) and isinstance(joint_fit, dict) else np.nan),  # mm
@@ -252,7 +252,7 @@ class Optimization:
             "alpha_x0_err": alpha_x0_err,
             "beta_y0_err": beta_y0_err,
             "alpha_y0_err": alpha_y0_err,
-            "quad_k1l_0_err": quad_k1l_0_err,
+            "quad_setting_0_err": quad_setting_0_err,
         }
 
         output = {
@@ -260,7 +260,7 @@ class Optimization:
             "pred_x": fit_x["pred"],
             "pred_y": fit_y["pred"],
             "screens": list(session.get("screens", [])),
-            "K1L_values": K1L_values.tolist(),
+            "quad_setting_values": quad_setting_values.tolist(),
         }
 
         self.best_out_so_far = output
@@ -293,7 +293,7 @@ class Optimization:
             "pred_y": pred_y,
             "emit_x_norm": float(best_row["emit_x_norm"]),
             "emit_y_norm": float(best_row["emit_y_norm"]),
-            "quad_k1l_0": (float(best_row["quad_k1l_0"]) if "quad_k1l_0" in best_row else np.nan),
+            "quad_setting_0": (float(best_row["quad_setting_0"]) if "quad_setting_0" in best_row else np.nan),
             "quad_dx0": (float(best_row["quad_dx0"]) if "quad_dx0" in best_row else np.nan),
             "quad_dy0": (float(best_row["quad_dy0"]) if "quad_dy0" in best_row else np.nan),
             "quad_roll": (float(best_row["quad_roll"]) if "quad_roll" in best_row else np.nan),
@@ -301,7 +301,7 @@ class Optimization:
             "cost": float(best_cost) if np.isfinite(best_cost) else np.nan,
         }
 
-    def _fit_6d(self, screens, quad_name, K1L_values, sigx_shots, sigy_shots, bounds, x_shots=None, y_shots=None, sigxy_shots=None):
+    def _fit_6d(self, screens, quad_name, quad_setting_values, sigx_shots, sigy_shots, bounds, x_shots=None, y_shots=None, sigxy_shots=None):
         # Beam size for every individual shot.
         sigma_x_shots = np.asarray(sigx_shots, dtype=float)
         sigma_y_shots = np.asarray(sigy_shots, dtype=float)
@@ -395,14 +395,14 @@ class Optimization:
 
         gamma_rel, beta_rel, beta_gamma = self.interface.get_beam_factors()
         bounds = dict(bounds or {})
-        K1L_values = np.asarray(K1L_values, dtype=float)
-        K1L_0_readback = float(K1L_values[len(K1L_values)//2])
-        deltas_for_fit = K1L_values / K1L_0_readback - 1.0
+        quad_setting_values = np.asarray(quad_setting_values, dtype=float)
+        initial_quadrupole_setting_readback = float(quad_setting_values[len(quad_setting_values)//2])
+        deltas_for_fit = quad_setting_values / initial_quadrupole_setting_readback - 1.0
 
         params_order = ["emit_x_norm", "beta_x0", "alpha_x0", "emit_y_norm", "beta_y0", "alpha_y0"]
         n_core_params = len(params_order)
         if self.fit_quadrupole_strength:
-            params_order.append("quad_k1l_0")
+            params_order.append("quad_setting_0")
         if self.fit_quad_offset:
             params_order.extend(["quad_dx0", "quad_dy0"])
         if self.fit_quad_roll:
@@ -422,15 +422,15 @@ class Optimization:
             alpha_y0 = float(params["alpha_y0"])
 
             if self.fit_quadrupole_strength:
-                K1L_values_used = float(params["quad_k1l_0"]) * (1.0 + deltas_for_fit)
+                quad_setting_values_used = float(params["quad_setting_0"]) * (1.0 + deltas_for_fit)
             else:
-                K1L_values_used = K1L_values
+                quad_setting_values_used = quad_setting_values
 
             stop_checker = (lambda: self._stop_requested or self._pause_requested) if allow_stop else None
             try:
                 if self.fit_quad_offset or self.fit_quad_roll or self.fit_energy_pref:
                     full = self.interface.predict_emittance_scan_response_full(
-                        quad_name=quad_name, screens=screens, K1L_values=K1L_values_used,
+                        quad_name=quad_name, screens=screens, quad_setting_values=quad_setting_values_used,
                         emit_x=emit_x_norm, emit_y=emit_y_norm, beta_x0=beta_x0, beta_y0=beta_y0,
                         alpha_x0=alpha_x0, alpha_y0=alpha_y0,
                         quad_dx0=(float(params["quad_dx0"]) if self.fit_quad_offset else None),
@@ -441,7 +441,7 @@ class Optimization:
                     pred = {k: np.asarray(v, dtype=float) for k, v in full.items() if k != "particles_xy"}
                 else:
                     pred_sigx, pred_sigy = self.interface.predict_emittance_scan_response(
-                        quad_name=quad_name, screens=screens, K1L_values=K1L_values_used,
+                        quad_name=quad_name, screens=screens, quad_setting_values=quad_setting_values_used,
                         emit_x=emit_x_norm, emit_y=emit_y_norm, beta_x0=beta_x0, beta_y0=beta_y0,
                         alpha_x0=alpha_x0, alpha_y0=alpha_y0,
                         reference_screen=screens[0], stop_checker=stop_checker)
@@ -489,7 +489,7 @@ class Optimization:
         linear_optics = None
         linear_optics_notes = []
         try:
-            linear_optics = estimate_twiss_use_linear_optics_start(self.interface, quad_name, screens, K1L_values, sig_x, sig_y, u_x, u_y, valid_x, valid_y, beta_gamma)
+            linear_optics = estimate_twiss_use_linear_optics_start(self.interface, quad_name, screens, quad_setting_values, sig_x, sig_y, u_x, u_y, valid_x, valid_y, beta_gamma)
         except CheckLinearOpticsUnavailable as e:
             linear_optics_notes.append(str(e))
         except Exception as e:
@@ -515,7 +515,7 @@ class Optimization:
                 linear_optics_notes.append(f"This fit will probably not converge.")
             x0_linear_optics_values.extend(plane_values)
 
-        if self.fit_quadrupole_strength: x0_linear_optics_values.append(K1L_0_readback)
+        if self.fit_quadrupole_strength: x0_linear_optics_values.append(initial_quadrupole_setting_readback)
         if self.fit_quad_offset: x0_linear_optics_values.extend([0.0, 0.0])  # start from "no offset", the fit pulls away from it if the data supports it
         if self.fit_quad_roll: x0_linear_optics_values.append(0.0)  # start from "no roll"
         if self.fit_energy_pref: x0_linear_optics_values.append(float(getattr(self.interface, "Pref", 0.5 * (bounds["energy_pref"][0] + bounds["energy_pref"][1]))))

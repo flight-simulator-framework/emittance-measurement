@@ -39,7 +39,7 @@ def samples_uniform(rng, bounds, name):
     low, high = bounds[name]
     return float(rng.uniform(low, high))
 
-def get_nominal_K1L(interface, quad_name):
+def get_nominal_quad_setting(interface, quad_name):
     quads = interface.get_quadrupoles()
     names = list(quads["names"])
     strengths = np.asarray(quads["bdes"], dtype=float)
@@ -60,22 +60,22 @@ def build_sample(rng, bounds):
         emit_y_norm, beta_y0, alpha_y0,
     ], dtype=float)
 
-def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_samples, output_file, log_callback, progress_callback, stop_checker):
+def generate_dataset(quad_name, screens, interface, quad_setting_relative_change, n_samples, output_file, log_callback, progress_callback, stop_checker):
     rng = np.random.default_rng(RANDOM_SEED)
     log = log_callback if callable(log_callback) else print
     n_samples = int(n_samples)
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    K1L_nominal = get_nominal_K1L(interface, quad_name)
+    nominal_quad_setting = get_nominal_quad_setting(interface, quad_name)
     bounds = _get_interface_bounds(interface)
     gamma_rel, beta_rel, beta_gamma = interface.get_beam_factors()
 
     if not np.isfinite(beta_gamma) or beta_gamma <= 0:
         raise RuntimeError(f"Invalid beta_gamma from interface: {beta_gamma}")
-    fixed_k1l = float(K1L_nominal)
+    fixed_quad_setting = float(nominal_quad_setting)
 
-    log(f"{quad_name} nominal/fixed K1L: {fixed_k1l}")
-    log(f"Generating {n_samples} rows with fixed lattice and fixed K1L.")
+    log(f"{quad_name} nominal/fixed quadrupole setting: {fixed_quad_setting}")
+    log(f"Generating {n_samples} rows with fixed lattice and fixed quadrupole setting.")
     log(f"Only incoming beam parameters are varied.")
     log(f"Screens: {screens}")
     log(f"Output file: {output_file}")
@@ -94,12 +94,12 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
             break
         twiss_parameters = build_sample(rng, bounds)
         emit_x_norm, beta_x0, alpha_x0, emit_y_norm, beta_y0, alpha_y0 = twiss_parameters
-        K1L_array = np.array([fixed_k1l], dtype=float)
+        quad_setting_array = np.array([fixed_quad_setting], dtype=float)
         try:
             pred_sigx, pred_sigy = interface.predict_emittance_scan_response(
                 quad_name=quad_name,
                 screens=screens,
-                K1L_values=np.asarray(K1L_array, dtype=float),
+                quad_setting_values=np.asarray(quad_setting_array, dtype=float),
                 emit_x=emit_x_norm,
                 emit_y=emit_y_norm,
                 beta_x0=beta_x0,
@@ -109,7 +109,7 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
                 reference_screen=screens[0],
                 stop_checker=None,
             )
-            required_shape = (len(K1L_array), len(screens))
+            required_shape = (len(quad_setting_array), len(screens))
             if pred_sigx.shape != required_shape or pred_sigy.shape != required_shape:
                 raise RuntimeError(f"Shapes are mismatched.")
 
@@ -156,13 +156,14 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
         screens=np.array(screens),
         quad_name=np.array(quad_name),
         reference_screen=np.array(screens[0]),
-        K1L_fixed=np.array(fixed_k1l, dtype=float),
-        K1L_relative_change=np.array(k1l_relative_change, dtype=float),
+        fixed_quad_setting=np.array(fixed_quad_setting, dtype=float),
+        quad_setting_relative_change=np.array(quad_setting_relative_change, dtype=float),
         bounds=np.array([bounds[name] for name in PARAMETER_NAMES], dtype=float),
         bounds_names=np.array(PARAMETER_NAMES),
         interface_class_name=np.array(interface.__class__.__name__),
         interface_module=np.array(interface.__class__.__module__),
-        K1L_nominal=np.array(K1L_nominal, dtype=float),
+        nominal_quad_setting=np.array(nominal_quad_setting, dtype=float),
+        quad_value_unit=np.array(interface.get_quadrupoles([quad_name]).get("value_unit", (_get_interface_initial_settings(interface) or {}).get("units", {}).get("quadrupole_strength", ""))),
         n_requested_samples = np.array(n_samples, dtype=int),
         beta_gamma=np.array(beta_gamma, dtype=float),
         gamma_rel=np.array(gamma_rel, dtype=float),
@@ -181,5 +182,5 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
         "Y_shape": Y.shape,
         "failed": int(failed),
         "valid": int(X.shape[0]),
-        "K1L_fixed": float(fixed_k1l),
+        "fixed_quad_setting": float(fixed_quad_setting),
     }

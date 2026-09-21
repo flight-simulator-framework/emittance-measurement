@@ -63,13 +63,13 @@ class DatasetGeneratorWorker(QObject):
     progress = pyqtSignal( int, int)
     log_message = pyqtSignal(str)
 
-    def __init__(self, interface, quad_name, screens, n_samples, relative_k_change, output_file, linear_response=False):
+    def __init__(self, interface, quad_name, screens, n_samples, relative_setting_change, output_file, linear_response=False):
         super().__init__()
         self.interface = interface
         self.quad_name = quad_name
         self.screens = screens
         self.n_samples = n_samples
-        self.k1l_relative_change = relative_k_change
+        self.quad_setting_relative_change = relative_setting_change
         self.output_file = output_file
         self.linear_response = linear_response
         self.stop_requested = False
@@ -92,7 +92,7 @@ class DatasetGeneratorWorker(QObject):
                 self._emit_log(f"Generating linear response dataset: {self.output_file}")
                 result = generate_linear_response_dataset(
                     quad_name=self.quad_name, screens=self.screens, interface=self.interface,
-                    k1l_relative_change=(0.0, 0.0), n_samples=self.n_samples, output_file=self.output_file,
+                    quad_setting_relative_change=(0.0, 0.0), n_samples=self.n_samples, output_file=self.output_file,
                     log_callback=self._emit_log, progress_callback=self._emit_progress, stop_checker=self._should_stop,
                 )
             else:
@@ -105,7 +105,7 @@ class DatasetGeneratorWorker(QObject):
                     "alpha_y0": [-3.0, 2.0],
                 }
                 self._emit_log(f"Appending to dataset: {self.output_file}")
-                result = append_dataset(quad_name = self.quad_name, screens = self.screens, interface = self.interface, k1l_relative_change = self.k1l_relative_change, n_samples = self.n_samples, existing_file=self.output_file, new_bounds=new_bounds)
+                result = append_dataset(quad_name = self.quad_name, screens = self.screens, interface = self.interface, quad_setting_relative_change = self.quad_setting_relative_change, n_samples = self.n_samples, existing_file=self.output_file, new_bounds=new_bounds)
 
             self.finished.emit(result)
 
@@ -504,9 +504,9 @@ class MainWindow(QMainWindow, SaveOrLoad):
 
         quad_name = quadrupoles[0]
         linear_response = self.linear_response_checkbox.isChecked()
-        relative_k_change = (float(self.k1_relative_min_spin.value()), float(self.k1_relative_max_spin.value()))
-        if not linear_response and relative_k_change[0] >= relative_k_change[1]:
-            QMessageBox.warning(self, "Error", "K1L relative min must be smaller than K1L relative max.")
+        relative_setting_change = (float(self.quad_setting_relative_min_spin.value()), float(self.quad_setting_relative_max_spin.value()))
+        if not linear_response and relative_setting_change[0] >= relative_setting_change[1]:
+            QMessageBox.warning(self, "Error", "The minimum relative quadrupole setting must be smaller than the maximum.")
             return
         n_samples = int(self.samples_spin.value())
         output_dir = self.output_dir_edit.text().strip()
@@ -533,7 +533,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
             quad_name=quad_name,
             screens=screens,
             n_samples=n_samples,
-            relative_k_change=relative_k_change,
+            relative_setting_change=relative_setting_change,
             output_file=output_file,
             linear_response=linear_response,
         )

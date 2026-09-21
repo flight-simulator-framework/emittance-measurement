@@ -249,13 +249,11 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.phase_spaces = None
         self.screen_images = None
         self.beamline_view = None
-        self.beta_evolution_window = None
-        self.emittance_evolution_window = None
+        self.beta_eps_evolution = None
         self.log_console_button.clicked.connect(self._show_console_log)
-        # self.phase_spaces_button.clicked.connect(self._show_phase_spaces)
+        self.phase_spaces_button.clicked.connect(self._show_phase_spaces)
         self.display_screen_images_button.clicked.connect(self._show_screen_images)
-        # self.beta_function_button.clicked.connect(self._show_beta_function_evolution)
-        self.emittance_evolution_button.clicked.connect(self._show_emittance_evolution)
+        self.show_evolution_button.clicked.connect(self._show_emittance_evolution)
         self.pause_button.clicked.connect(self._pause_task)
         self.resume_button.clicked.connect(self._resume_task)
         self._scan_pause_requested = False
@@ -264,9 +262,9 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self._interrupted_scan = None
         self._last_scan_status = None
         self.fit_core_params = ("emit_x_norm", "beta_x0", "alpha_x0", "emit_y_norm", "beta_y0", "alpha_y0")
-        self.additional_params = ("quad_k1l_0", "quad_dx0", "quad_dy0", "quad_roll", "energy_pref")
-        self.additional_params_scales = {"quad_k1l_0": 1.0, "quad_dx0": 1e-3, "quad_dy0": 1e-3, "quad_roll": 1e-3, "energy_pref": 1}
-        self.additional_params_defaults = {"quad_k1l_0": (0.0, 0.0), "quad_dx0": (-2.0, 2.0), "quad_dy0": (-2.0, 2.0), "quad_roll": (-50.0, 50.0), "energy_pref": (150, 250)}
+        self.additional_params = ("quad_setting_0", "quad_dx0", "quad_dy0", "quad_roll", "energy_pref")
+        self.additional_params_scales = {"quad_setting_0": 1.0, "quad_dx0": 1e-3, "quad_dy0": 1e-3, "quad_roll": 1e-3, "energy_pref": 1}
+        self.additional_params_defaults = {"quad_setting_0": (0.0, 0.0), "quad_dx0": (-2.0, 2.0), "quad_dy0": (-2.0, 2.0), "quad_roll": (-50.0, 50.0), "energy_pref": (150, 250)}
         self._setup_bounds_buttons()
         self._populate_default_bounds()
         self.fit_quadrupole_strength_checkbox.toggled.connect(self._update_additional_fit_controls)
@@ -427,14 +425,14 @@ class MainWindow(QMainWindow, QuadrupoleScan):
 
     def _show_emittance_evolution(self):
         _, screens = self._get_selection()
-        if self.emittance_evolution_window is None:
-            self.emittance_evolution_window = EmittanceEvolution(interface=self.interface, parent=self, screens=screens)
+        if self.beta_eps_evolution is None:
+            self.beta_eps_evolution = EmittanceEvolution(interface=self.interface, parent=self, screens=screens)
         session = self.session if isinstance(self.session, dict) else {}
-        self.emittance_evolution_window._display_emittance_evolution(
+        self.beta_eps_evolution._display_beam_evolution(
             screens=screens, session=session, result=session.get("optimization_result"))
-        self.emittance_evolution_window.show()
-        self.emittance_evolution_window.raise_()
-        self.emittance_evolution_window.activateWindow()
+        self.beta_eps_evolution.show()
+        self.beta_eps_evolution.raise_()
+        self.beta_eps_evolution.activateWindow()
 
     def _on_bg_shots_changed(self, value):
         self.interface.bg_shots = max(0, int(value))
@@ -498,7 +496,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "emit_y_norm": self.eps_v_bounds,
             "beta_y0": self.beta_v_bounds,
             "alpha_y0": self.alpha_v_bounds,
-            "quad_k1l_0": self.quad_strength_bounds,
+            "quad_setting_0": self.quad_strength_bounds,
             "quad_dx0": self.quad_dx_bounds,
             "quad_dy0": self.quad_dy_bounds,
             "quad_roll": self.quad_roll_bounds,
@@ -507,7 +505,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.bounds_units = {
             "emit_x_norm": "mm·mrad", "beta_x0": "m", "alpha_x0": "",
             "emit_y_norm": "mm·mrad", "beta_y0": "m", "alpha_y0": "",
-            "quad_k1l_0": self._quadrupole_value_unit(), "quad_dx0": "mm", "quad_dy0": "mm", "quad_roll": "mrad",
+            "quad_setting_0": self._quadrupole_value_unit(), "quad_dx0": "mm", "quad_dy0": "mm", "quad_roll": "mrad",
             "energy_pref": "MeV/c"
 
         }
@@ -518,16 +516,16 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "emit_y_norm": "Vertical ε (norm.)",
             "beta_y0": "Vertical β",
             "alpha_y0": "Vertical α",
-            "quad_k1l_0": "Quadrupole strength",
+            "quad_setting_0": "Quadrupole strength",
             "quad_dx0": "Quadrupole Δx",
             "quad_dy0": "Quadrupole Δy",
             "quad_roll": "Quadrupole roll",
             "energy_pref": "Beam energy"
         }
         self._bounds_button_base_text = {param: button.text() for param, button in self.bounds_buttons.items()}
-        quad_value_unit = self.bounds_units["quad_k1l_0"]
+        quad_value_unit = self.bounds_units["quad_setting_0"]
         self._bounds_button_base_text[
-            "quad_k1l_0"] = "I₀ [A]" if quad_value_unit == "A" else f"K1L₀ [{quad_value_unit}]"
+            "quad_setting_0"] = "I₀ [A]" if quad_value_unit == "A" else f"Setting₀ [{quad_value_unit}]"
         self._bounds_values = {}
         for param, button in self.bounds_buttons.items():
             button.clicked.connect(lambda _checked=False, parameter=param: self._edit_bounds(parameter))
@@ -549,12 +547,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             f"{self.bounds_display_names.get(param, param)}: ({low:g}, {high:g}) {unit}".strip() + "\nClick to change the fit search bounds.")
 
     def _bounds_hint(self, param):
-        if param == "quad_k1l_0":
+        if param == "quad_setting_0":
             return self._quad_readback_text()
         return ""
 
     def _edit_bounds(self, param):
-        if param == "quad_k1l_0":
+        if param == "quad_setting_0":
             self.bounds_units[param] = self._quadrupole_value_unit()
         low, high = self._bounds_values.get(param, (0.0, 0.0))
         dialog = BoundsForParameter(self.bounds_display_names.get(param, param), parent=self,
@@ -581,17 +579,17 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         if session is None:
             return
         unit = self._quadrupole_value_unit(session)
-        self.bounds_units["quad_k1l_0"] = unit
-        self._bounds_button_base_text["quad_k1l_0"] = "I₀ [A]" if unit == "A" else f"K1L₀ [{unit}]"
-        k1l_0 = float(session.get("K1L_0", np.nan))
-        if not np.isfinite(k1l_0) or np.isclose(k1l_0, 0.0):
-            scanned_values = np.asarray(session.get("K1L_values", []), dtype=float)
-            k1l_0 = float(np.nanmedian(scanned_values)) if scanned_values.size else np.nan
-        if not np.isfinite(k1l_0):
-            self._refresh_bounds_button("quad_k1l_0")
+        self.bounds_units["quad_setting_0"] = unit
+        self._bounds_button_base_text["quad_setting_0"] = "I₀ [A]" if unit == "A" else f"Setting₀ [{unit}]"
+        initial_quadrupole_setting = float(session.get("initial_quadrupole_setting", np.nan))
+        if not np.isfinite(initial_quadrupole_setting) or np.isclose(initial_quadrupole_setting, 0.0):
+            scanned_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
+            initial_quadrupole_setting = float(np.nanmedian(scanned_values)) if scanned_values.size else np.nan
+        if not np.isfinite(initial_quadrupole_setting):
+            self._refresh_bounds_button("quad_setting_0")
             return
-        low, high = sorted((0.7 * k1l_0, 1.3 * k1l_0))
-        self._set_bounds_value("quad_k1l_0", low, high)
+        low, high = sorted((0.7 * initial_quadrupole_setting, 1.3 * initial_quadrupole_setting))
+        self._set_bounds_value("quad_setting_0", low, high)
 
     def _set_bound_row_enabled(self, param, enabled):
         button = self.bounds_buttons.get(param)
@@ -602,7 +600,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         is_linear_mode = self.computation_mode == ComputationMode.LRM
         for checkbox in (self.fit_quadrupole_strength_checkbox, self.fit_quad_offset_checkbox, self.fit_quad_roll_checkbox, self.fit_energy_checkbox):
             checkbox.setEnabled(not is_linear_mode)
-        self._set_bound_row_enabled("quad_k1l_0", not is_linear_mode and self.fit_quadrupole_strength_checkbox.isChecked())
+        self._set_bound_row_enabled("quad_setting_0", not is_linear_mode and self.fit_quadrupole_strength_checkbox.isChecked())
         offset_bounds_enabled = not is_linear_mode and self.fit_quad_offset_checkbox.isChecked()
         self._set_bound_row_enabled("quad_dx0", offset_bounds_enabled)
         self._set_bound_row_enabled("quad_dy0", offset_bounds_enabled)
@@ -624,7 +622,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
     def _get_bounds_from_gui(self):
         bounds = {param: list(self._bounds_values.get(param, (0.0, 0.0))) for param in self.fit_core_params}
         checkbox_by_param = {
-            "quad_k1l_0": self.fit_quadrupole_strength_checkbox,
+            "quad_setting_0": self.fit_quadrupole_strength_checkbox,
             "quad_dx0": self.fit_quad_offset_checkbox,
             "quad_dy0": self.fit_quad_offset_checkbox,
             "quad_roll": self.fit_quad_roll_checkbox,
@@ -641,7 +639,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         session = self._get_session_for_selected_quad(session)
         if not isinstance(session, dict):
             return []
-        quad_values = np.asarray(session.get("K1L_values", []), dtype=float)
+        quad_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
         currents = np.asarray(session.get("current_values", []), dtype=float)
         screens = list(session.get("screens", []))
         sigx = np.asarray(session.get("sigx_mean", []), dtype=float)
@@ -735,7 +733,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         current = float(iact[0]) if iact.size and np.isfinite(iact[0]) else self.quad_setpoint_to_current(quad_name,
                                                                                                           value, unit)
         current_text = f" = {current:.3f} A" if np.isfinite(current) else " (no A calibration)"
-        return f"{quad_name} readback: K1L = {value:.5g} {unit}{current_text}"
+        return f"{quad_name} readback: setting = {value:.5g} {unit}{current_text}"
 
     def _update_quad_readback_label(self):
         self.quad_readback_label.setText(self._quad_readback_text())
@@ -990,7 +988,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         unit = self._quadrupole_value_unit(session)
         if unit == "A":
             return "Quadrupole current [A]"
-        return f"K1L [{unit}]"
+        return f"Quadrupole setting [{unit}]"
 
     def _update_fit_panel(self, result):
         self.result_quad.setText(str(result["quad_name"]))
@@ -1015,7 +1013,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             return f"{value_text} ± {error_text} {unit}".rstrip()
 
         quad_strength_text = fmt_value(
-            result.get("quad_k1l_0"), f" {self._quadrupole_value_unit()}"
+            result.get("quad_setting_0"), f" {self._quadrupole_value_unit()}"
         )
         if result.get("fit_quadrupole_strength", False) and quad_strength_text != "-":
             quad_strength_text += " (fit)"
@@ -1095,7 +1093,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         session_to_plot = self._get_session_for_selected_quad(self._session_without_excluded_points(session))
         if session_to_plot is None:
             return
-        K1L_values = np.asarray(session_to_plot["K1L_values"], dtype=float)
+        quad_setting_values = np.asarray(session_to_plot["quad_setting_values"], dtype=float)
         sigx = np.asarray(session_to_plot["sigx_mean"], dtype=float)
         sigy = np.asarray(session_to_plot["sigy_mean"], dtype=float)
         screens = list(session_to_plot["screens"])
@@ -1133,8 +1131,8 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             mask_x = np.isfinite(sigx[:, i])
             mask_y = np.isfinite(sigy[:, i])
             color = color_cycle[i % len(color_cycle)]
-            ax1.plot(K1L_values[mask_x], sigx[mask_x, i], 'o--', color=color, label=screen)
-            ax2.plot(K1L_values[mask_y], sigy[mask_y, i], 'o--', color=color, label=screen)
+            ax1.plot(quad_setting_values[mask_x], sigx[mask_x, i], 'o--', color=color, label=screen)
+            ax2.plot(quad_setting_values[mask_y], sigy[mask_y, i], 'o--', color=color, label=screen)
         ax1.set_title(f"Quadrupole scan: {quad_name}")
         ax1.set_ylabel(f"sigx [{em_sigma_unit}]")
         ax2.set_ylabel(f"sigy [{em_sigma_unit}]")
@@ -1148,7 +1146,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         fig.tight_layout()
         self.canvas.draw()
 
-    def _plot_fit_overlay(self, pred_x, pred_y, result=None, screens=None, fit_k1l_values=None):
+    def _plot_fit_overlay(self, pred_x, pred_y, result=None, screens=None, fit_quad_setting_values=None):
         if self.session is None:
             return
         plotted_session = self._session_without_excluded_points(self.session)
@@ -1164,13 +1162,13 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             raise ValueError(f"Unknown prediction observable: {prediction_observable}")
         n_screens = min(len(screens), pred_x.shape[1], pred_y.shape[1])
         screens = screens[:n_screens]
-        K1L_values = np.asarray(plotted_session["K1L_values"], dtype=float)
+        quad_setting_values = np.asarray(plotted_session["quad_setting_values"], dtype=float)
         sigx = np.asarray(plotted_session["sigx_mean"], dtype=float)
         sigy = np.asarray(plotted_session["sigy_mean"], dtype=float)
-        if fit_k1l_values is not None and len(fit_k1l_values) == pred_x.shape[0]:
-            fit_K1L_values = np.asarray(fit_k1l_values, dtype=float)
+        if fit_quad_setting_values is not None and len(fit_quad_setting_values) == pred_x.shape[0]:
+            fit_quad_setting_values = np.asarray(fit_quad_setting_values, dtype=float)
         else:
-            fit_K1L_values = K1L_values
+            fit_quad_setting_values = quad_setting_values
         fig = self.canvas.figure
         fig.clear()
 
@@ -1191,14 +1189,14 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         for prediction_i, screen in enumerate(screens):
             session_i = session_screens.index(screen)
             color = color_cycle[session_i % len(color_cycle)]
-            ax1.plot(K1L_values, sigx[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
+            ax1.plot(quad_setting_values, sigx[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
             fit_x = pred_x[:, prediction_i] if prediction_observable == "sigma" else np.sqrt(
                 np.maximum(pred_x[:, prediction_i], 0.0))
-            ax1.plot(fit_K1L_values, fit_x, "-", color=color, linewidth=2.0, label=f"{screen} fit")
-            ax2.plot(K1L_values, sigy[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
+            ax1.plot(fit_quad_setting_values, fit_x, "-", color=color, linewidth=2.0, label=f"{screen} fit")
+            ax2.plot(quad_setting_values, sigy[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
             fit_y = pred_y[:, prediction_i] if prediction_observable == "sigma" else np.sqrt(
                 np.maximum(pred_y[:, prediction_i], 0.0))
-            ax2.plot(fit_K1L_values, fit_y, "-", color=color, linewidth=2.0, label=f"{screen} fit")
+            ax2.plot(fit_quad_setting_values, fit_y, "-", color=color, linewidth=2.0, label=f"{screen} fit")
 
         unit = self.session.get("sigma_unit", self._get_interface_units())
         quad_axis_label = self._quadrupole_scan_axis_label(self.session)
@@ -1229,14 +1227,14 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         steps_requested = int(self.emittance_settings["scan_steps"])
         quad_name = self.emittance_settings.get("quad_name")
         if not quad_name:
-            raise ValueError("Choose a quadrupole before doing a fixed-K1L session.")
+            raise ValueError("Choose a quadrupole before doing a fixed-setting session.")
         quad_value_unit = "1/m"
 
         if is_quad_scan:
             current_A_min = float(self.emittance_settings.get("current_A_min", 0.0))
             current_A_max = float(self.emittance_settings.get("current_A_max", 0.0))
             nsteps_scan = max(int(os.path.basename(path).replace(".pkl", "").split("_")[3]) for path in files) + 1
-            K1L_values = np.full(nsteps_scan, np.nan)
+            quad_setting_values = np.full(nsteps_scan, np.nan)
             for path, state in zip(files, states):
                 filename = os.path.basename(path)
                 step_i = int(filename.split("_")[3])  # screen_0000_step_0003_shot_0000.pkl -> 0003
@@ -1246,12 +1244,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
                 bdes = np.ravel(np.asarray(quad.get("bdes", []), dtype=float))
                 index = names.index(quad_name) if quad_name in names else 0
                 if index < bdes.size:
-                    K1L_values[step_i] = float(bdes[index])
-            K1L_0 = float(self.emittance_settings.get("K1L_0", np.nan))
-            if not np.isfinite(K1L_0):
-                K1L_0 = float(np.nanmedian(K1L_values))
-            if np.isfinite(K1L_0) and not np.isclose(K1L_0, 0.0):
-                deltas = K1L_values / K1L_0 - 1.0
+                    quad_setting_values[step_i] = float(bdes[index])
+            initial_quadrupole_setting = float(self.emittance_settings.get("initial_quadrupole_setting", np.nan))
+            if not np.isfinite(initial_quadrupole_setting):
+                initial_quadrupole_setting = float(np.nanmedian(quad_setting_values))
+            if np.isfinite(initial_quadrupole_setting) and not np.isclose(initial_quadrupole_setting, 0.0):
+                deltas = quad_setting_values / initial_quadrupole_setting - 1.0
             else:
                 deltas = np.full(nsteps_scan, np.nan)
 
@@ -1265,11 +1263,11 @@ class MainWindow(QMainWindow, QuadrupoleScan):
                 if quad_name in names:
                     strengths.append(float(bdes[names.index(quad_name)]))
             if not strengths or not np.any(np.isfinite(strengths)):
-                raise ValueError("The loaded fixed-K1L session does not contain the selected quadrupole strength.")
-            K1L_0 = float(np.nanmean(strengths))
+                raise ValueError("The loaded fixed-setting session does not contain the selected quadrupole strength.")
+            initial_quadrupole_setting = float(np.nanmean(strengths))
             current_A_min, current_A_max, nsteps_scan = 0.0, 0.0, 1
             deltas = np.array([0.0])
-            K1L_values = np.array([K1L_0])
+            quad_setting_values = np.array([initial_quadrupole_setting])
 
         nscreens = int(self.emittance_settings["nscreens"])
         screens = list(self.emittance_settings.get("screens", []))
@@ -1328,8 +1326,8 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             scan_steps.append({
                 "step_index": int(i),
                 "delta": float(deltas[i]),
-                "K1L": float(K1L_values[i]),
-                "quad_value": float(K1L_values[i]),
+                "quad_setting": float(quad_setting_values[i]),
+                "quad_value": float(quad_setting_values[i]),
                 "state_files": state_files,
             })
 
@@ -1345,7 +1343,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "screens": screens,
             "reference_screen": screens[0] if screens else "",
             "quad_value_unit": quad_value_unit,
-            "K1L_0": float(K1L_0),
+            "initial_quadrupole_setting": float(initial_quadrupole_setting),
             "sigx_mean": sigx_mean.tolist(),
             "sigy_mean": sigy_mean.tolist(),
             "sigxy_mean": sigxy_mean.tolist(),
@@ -1362,9 +1360,9 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "x_shots": x_samples.tolist(),
             "y_shots": y_samples.tolist(),
             "deltas": deltas.tolist(),
-            "K1L_values": K1L_values.tolist(),
+            "quad_setting_values": quad_setting_values.tolist(),
             "current_values": [self.quad_setpoint_to_current(quad_name, value, quad_value_unit) for value in
-                               K1L_values],
+                               quad_setting_values],
             "scan_steps": scan_steps,
             "states_dir": folder,
             "cancelled": False,
@@ -1374,7 +1372,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "vedges": vedges,
         }
 
-        print(f"Quadrupole values [{quad_value_unit}]:", session["K1L_values"])
+        print(f"Quadrupole values [{quad_value_unit}]:", session["quad_setting_values"])
         print("sigx:", session["sigx_mean"])
         print("sigy:", session["sigy_mean"])
         print("unit:", session.get("sigma_unit"))
@@ -1448,12 +1446,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         pred_x = np.asarray(output["pred_x"], dtype=float)
         pred_y = np.asarray(output["pred_y"], dtype=float)
         optimization_screens = list(output.get("screens", self.session.get("screens", [])))
-        fit_k1l_values = output.get("K1L_values")
+        fit_quad_setting_values = output.get("quad_setting_values")
         self.session["optimization_result"] = result
         self.session["optimization_pred_x"] = pred_x.tolist()
         self.session["optimization_pred_y"] = pred_y.tolist()
         self._update_fit_panel(result)
-        self._plot_fit_overlay(pred_x, pred_y, result, screens=optimization_screens, fit_k1l_values=fit_k1l_values)
+        self._plot_fit_overlay(pred_x, pred_y, result, screens=optimization_screens, fit_quad_setting_values=fit_quad_setting_values)
         self.save_emittance_measurement_session(session=self.session, is_fit_quad_strength_checked=bool(
             self.fit_quadrupole_strength_checkbox.isChecked()), bounds=self._get_bounds_from_gui(),
                                                 target_dir=getattr(self, "_general_session_dir", None))

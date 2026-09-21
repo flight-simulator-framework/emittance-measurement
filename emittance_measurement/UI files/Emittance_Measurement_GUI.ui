@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1568</width>
-    <height>1054</height>
+    <width>1613</width>
+    <height>1053</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -518,11 +518,11 @@ QGroupBox#localOptimizationSettingsGroup::title {
            <number>6</number>
           </property>
           <item row="0" column="0">
-           <layout class="QHBoxLayout" name="fitK1ScaleLabelHBox">
+           <layout class="QHBoxLayout" name="fitQuadSettingLabelHBox">
             <item>
              <widget class="QCheckBox" name="fit_quadrupole_strength_checkbox">
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit effective K1₀ together with emittance and Twiss parameters.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit effective baseline quadrupole setting together with emittance and Twiss parameters.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
                <string>Fit quadrupole strength</string>
@@ -533,7 +533,7 @@ QGroupBox#localOptimizationSettingsGroup::title {
              </widget>
             </item>
             <item>
-             <widget class="QToolButton" name="fit_k1_scale_info_button">
+             <widget class="QToolButton" name="fit_quad_setting_info_button">
               <property name="minimumSize">
                <size>
                 <width>24</width>
@@ -553,7 +553,7 @@ QGroupBox#localOptimizationSettingsGroup::title {
                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Add the nominal scanned quadrupole setting as an extra fit parameter.&lt;/p&gt;&lt;p&gt;For CLEAR this setting is the magnet current in A.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="styleSheet">
-               <string notr="true">QToolButton#fit_k1_scale_info_button {
+               <string notr="true">QToolButton#fit_quad_setting_info_button {
     border: 1px solid #888;
     border-radius: 11px;
     min-width: 22px;
@@ -563,7 +563,7 @@ QGroupBox#localOptimizationSettingsGroup::title {
     padding: 0px;
     font-weight: bold;
 }
-QToolButton#fit_k1_scale_info_button:hover {
+QToolButton#fit_quad_setting_info_button:hover {
     background-color: #e6e6e6;
 }</string>
               </property>
@@ -581,7 +581,7 @@ QToolButton#fit_k1_scale_info_button:hover {
             <item>
              <widget class="QCheckBox" name="fit_quad_offset_checkbox">
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit the scanned quadrupole's transverse offset (quad_dx0, quad_dy0) together with emittance and Twiss parameters, from how the beam centroid on each screen moves vs K1L.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit the scanned quadrupole's transverse offset (quad_dx0, quad_dy0) together with emittance and Twiss parameters, from how the beam centroid on each screen moves vs quadrupole setting.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
                <string>Fit quad offset</string>
@@ -609,7 +609,7 @@ QToolButton#fit_k1_scale_info_button:hover {
                <cursorShape>PointingHandCursor</cursorShape>
               </property>
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fits the horizontal and vertical displacement of the scanned quadrupole relative to the beamline (Δx and Δy).&lt;/p&gt;&lt;p&gt;It uses how the beam centroid on each screen changes with K1L. Enable it only when those centroid measurements are reliable.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fits the horizontal and vertical displacement of the scanned quadrupole relative to the beamline (Δx and Δy).&lt;/p&gt;&lt;p&gt;It uses how the beam centroid on each screen changes with quadrupole setting. Enable it only when those centroid measurements are reliable.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="styleSheet">
                <string notr="true">QToolButton#fit_quad_offset_info_button {
@@ -634,7 +634,7 @@ QToolButton#fit_quad_offset_info_button:hover {
             <item>
              <widget class="QCheckBox" name="fit_quad_roll_checkbox">
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit the scanned quadrupole's roll (quad_roll) together with emittance and Twiss parameters, from the x-y coupling (sigma_xy) on each screen vs K1L.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fit the scanned quadrupole's roll (quad_roll) together with emittance and Twiss parameters, from the x-y coupling (sigma_xy) on each screen vs quadrupole setting.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="text">
                <string>Fit quad roll (coupling)</string>
@@ -662,7 +662,7 @@ QToolButton#fit_quad_offset_info_button:hover {
                <cursorShape>PointingHandCursor</cursorShape>
               </property>
               <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fits a rotation of the scanned quadrupole around the beam axis.&lt;/p&gt;&lt;p&gt;A rolled quadrupole couples the horizontal and vertical planes; the fit uses the measured x-y covariance (σxy) as K1L changes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fits a rotation of the scanned quadrupole around the beam axis.&lt;/p&gt;&lt;p&gt;A rolled quadrupole couples the horizontal and vertical planes; the fit uses the measured x-y covariance (σxy) as quadrupole setting changes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="styleSheet">
                <string notr="true">QToolButton#fit_quad_roll_info_button {
@@ -1580,16 +1580,9 @@ QGroupBox#fit_results_group::title {
               </widget>
              </item>
              <item>
-              <widget class="QPushButton" name="beta_function_button">
+              <widget class="QPushButton" name="show_evolution_button">
                <property name="text">
-                <string>Show beta function evolution</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="emittance_evolution_button">
-               <property name="text">
-                <string>Show emittance evolution</string>
+                <string>Show β and ε evolution</string>
                </property>
               </widget>
              </item>

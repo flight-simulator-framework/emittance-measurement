@@ -194,13 +194,13 @@ class QuadrupoleScan(SaveOrLoad):
 
         quadrupoles = self.interface.get_quadrupoles([quad_name])
         quad_value_unit = str(quadrupoles.get("value_unit", "1/m"))
-        quad_value_label = "current" if quad_value_unit == "A" else "K1L"
+        quad_value_label = "current" if quad_value_unit == "A" else "setting"
         bdes = np.asarray(quadrupoles.get("bdes", []), dtype=float)
-        K1L_0 = float(bdes[0])
-        current_0 = self.quad_setpoint_to_current(quad_name, K1L_0, quad_value_unit)
+        initial_quadrupole_setting = float(bdes[0])
+        current_0 = self.quad_setpoint_to_current(quad_name, initial_quadrupole_setting, quad_value_unit)
 
         if steps_requested == 0:
-            quad_values = np.array([K1L_0], dtype=float)
+            quad_values = np.array([initial_quadrupole_setting], dtype=float)
             values_per_screen = [quad_values.copy() for _ in screens]
             currents_per_screen = [np.array([current_0], dtype=float) for _ in screens]
             rows_per_screen = [np.array([0]) for _ in screens]
@@ -209,11 +209,11 @@ class QuadrupoleScan(SaveOrLoad):
                 quad_name=quad_name, screens=screens, current_min=current_min, current_max=current_max,
                 steps=steps_requested, quad_value_unit=quad_value_unit, screen_current_ranges=screen_current_ranges)
 
-        K1L_values = quad_values
+        quad_setting_values = quad_values
         currents_scanned = np.array([self.quad_setpoint_to_current(quad_name, value, quad_value_unit) for value in quad_values], dtype=float)
-        nsteps_scan = len(K1L_values)
+        nsteps_scan = len(quad_setting_values)
         nscreens = len(screens)
-        deltas = K1L_values / K1L_0 - 1.0 if np.isfinite(K1L_0) and not np.isclose(K1L_0, 0.0) else np.full(nsteps_scan, np.nan)
+        deltas = quad_setting_values / initial_quadrupole_setting - 1.0 if np.isfinite(initial_quadrupole_setting) and not np.isclose(initial_quadrupole_setting, 0.0) else np.full(nsteps_scan, np.nan)
 
         sigx_mean = np.full((nsteps_scan, nscreens), np.nan, dtype=float)
         sigy_mean = np.full((nsteps_scan, nscreens), np.nan, dtype=float)
@@ -256,7 +256,7 @@ class QuadrupoleScan(SaveOrLoad):
                     cancel_requested = True
                     break
                 try:
-                    for i_local, K1L in enumerate(values_per_screen[k]):
+                    for i_local, quad_setting in enumerate(values_per_screen[k]):
                         i = int(rows_per_screen[k][i_local])
                         while getattr(self, "_scan_pause_requested", False) and not getattr(self, "_scan_stop_requested", False):
                             setattr(self, "_scan_is_paused", True)
@@ -283,13 +283,13 @@ class QuadrupoleScan(SaveOrLoad):
                         else:
                             if steps_requested > 0:
                                 print("Before set_quadrupoles")
-                                reached = self.interface.set_quadrupoles([quad_name], [float(K1L)])
+                                reached = self.interface.set_quadrupoles([quad_name], [float(quad_setting)])
                                 if reached is False:
-                                    reached = self.interface.set_quadrupoles([quad_name], [float(K1L)])
+                                    reached = self.interface.set_quadrupoles([quad_name], [float(quad_setting)])
                                 if reached is False:
                                     raise RuntimeError(
                                         f"{quad_name} did not reach requested {quad_value_label}="
-                                        f"{K1L:.6g} {quad_value_unit} (step {i}) after retry")
+                                        f"{quad_setting:.6g} {quad_value_unit} (step {i}) after retry")
                                 print("After set_quadrupoles")
                             print("before calling get_quadrupoles")
                             quad_data = self.interface.get_quadrupoles([quad_name])
@@ -359,8 +359,8 @@ class QuadrupoleScan(SaveOrLoad):
                             existing_step = {
                                 "step_index": int(i),
                                 "delta": float(deltas[i]),
-                                "K1L": float(K1L),
-                                "quad_value": float(K1L),
+                                "quad_setting": float(quad_setting),
+                                "quad_value": float(quad_setting),
                                 "current_A": float(currents_per_screen[k][i_local]),
                                 "state_files": [],
                             }
@@ -380,7 +380,7 @@ class QuadrupoleScan(SaveOrLoad):
                             "screens": screens,
                             "reference_screen": reference_screen,
                             "quad_value_unit": quad_value_unit,
-                            "K1L_0": float(K1L_0),
+                            "initial_quadrupole_setting": float(initial_quadrupole_setting),
                             "current_0": float(current_0),
                             "sigx_mean": sigx_mean.tolist(),
                             "sigy_mean": sigy_mean.tolist(),
@@ -398,7 +398,7 @@ class QuadrupoleScan(SaveOrLoad):
                             "x_shots": x_shots.tolist(),
                             "y_shots": y_shots.tolist(),
                             "deltas": deltas.tolist(),
-                            "K1L_values": K1L_values.tolist(),
+                            "quad_setting_values": quad_setting_values.tolist(),
                             "current_values": currents_scanned.tolist(),
                             "scan_steps": scan_steps,
                             "states_dir": output_dir,
@@ -424,18 +424,18 @@ class QuadrupoleScan(SaveOrLoad):
                     if callable(extract_screen):
                         extract_screen(screen_name)
         finally:
-            if steps_requested > 0 and np.isfinite(K1L_0):
+            if steps_requested > 0 and np.isfinite(initial_quadrupole_setting):
                 try:
-                    restored = self.interface.set_quadrupoles([quad_name], [float(K1L_0)])
+                    restored = self.interface.set_quadrupoles([quad_name], [float(initial_quadrupole_setting)])
                     if restored is False:
                         print(
                             f"{quad_name} did not confirm returning to its original "
-                            f"{quad_value_label}={K1L_0:.6g} {quad_value_unit} after the scan."
+                            f"{quad_value_label}={initial_quadrupole_setting:.6g} {quad_value_unit} after the scan."
                         )
                 except Exception as exc:
                     print(
                         f"Failed to restore {quad_name} to its original "
-                        f"{quad_value_label}={K1L_0:.6g} {quad_value_unit}: {exc}"
+                        f"{quad_value_label}={initial_quadrupole_setting:.6g} {quad_value_unit}: {exc}"
                     )
 
         session = {
@@ -450,7 +450,7 @@ class QuadrupoleScan(SaveOrLoad):
             "screens": screens,
             "reference_screen": reference_screen,
             "quad_value_unit": quad_value_unit,
-            "K1L_0": float(K1L_0),
+            "initial_quadrupole_setting": float(initial_quadrupole_setting),
             "current_0": float(current_0),
             "sigx_mean": sigx_mean.tolist(),
             "sigy_mean": sigy_mean.tolist(),
@@ -468,7 +468,7 @@ class QuadrupoleScan(SaveOrLoad):
             "x_shots": x_shots.tolist(),
             "y_shots": y_shots.tolist(),
             "deltas": deltas.tolist(),
-            "K1L_values": K1L_values.tolist(),
+            "quad_setting_values": quad_setting_values.tolist(),
             "current_values": currents_scanned.tolist(),
             "scan_steps": scan_steps,
             "states_dir": output_dir,

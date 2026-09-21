@@ -4,7 +4,7 @@ Learns what is currently done by interface.predict_emittance_scan_response()
 Input parameters per sample:
 emit_x_norm, beta_x0, alpha_x0,
 emit_y_norm, beta_y0, alpha_y0,
-K1L
+quad_setting
 
 Output targets per sample:
 sigx on selected screens + sigy on selected screens
@@ -30,13 +30,13 @@ PARAMETER_NAMES = [
     "emit_y_norm",
     "beta_y0",
     "alpha_y0",
-    "K1L",
+    "quad_setting",
 ]
 
-N_K1_PER_TWISS = 7
+N_SETTINGS_PER_TWISS = 7
 TARGET_OBSERVABLE = "sigma"
 
-def _save_dataset_checkpoint(output_file, X, Y, twiss_group_ids, screens, quad_name, k1l_relative_change, bounds, interface, K1L_nominal, n_samples, n_twiss_combinations, n_k1l_per_twiss_set):
+def _save_dataset_checkpoint(output_file, X, Y, twiss_group_ids, screens, quad_name, quad_setting_relative_change, bounds, interface, nominal_quad_setting, n_samples, n_twiss_combinations, n_settings_per_twiss_set):
     output_file = Path(output_file)
     tmp_file = Path(output_file).with_name("tmp_dataset.npz")
     np.savez(
@@ -50,15 +50,16 @@ def _save_dataset_checkpoint(output_file, X, Y, twiss_group_ids, screens, quad_n
         screens=np.array(screens),
         quad_name=np.array(quad_name),
         reference_screen=np.array(screens[0]),
-        K1L_relative_change=np.array(k1l_relative_change, dtype=float),
+        quad_setting_relative_change=np.array(quad_setting_relative_change, dtype=float),
         bounds=np.array([bounds[name] for name in PARAMETER_NAMES[:-1]], dtype=float),
         bounds_names=np.array(PARAMETER_NAMES[:-1]),
         interface_class_name=np.array(interface.__class__.__name__),
         interface_module=np.array(interface.__class__.__module__),
-        K1L_nominal=np.array(K1L_nominal, dtype=float),
+        nominal_quad_setting=np.array(nominal_quad_setting, dtype=float),
+        quad_value_unit=np.array(interface.get_quadrupoles([quad_name]).get("value_unit", (_get_interface_initial_settings(interface) or {}).get("units", {}).get("quadrupole_strength", ""))),
         n_requested_samples=np.array(n_samples, dtype=int),
         n_twiss_combinations=np.array(n_twiss_combinations, dtype=int),
-        n_k1l_per_twiss_set=np.array(n_k1l_per_twiss_set, dtype=int),
+        n_settings_per_twiss_set=np.array(n_settings_per_twiss_set, dtype=int),
     )
     tmp_file.replace(output_file)
 
@@ -82,7 +83,7 @@ def _get_interface_bounds(interface):
         return {}
     return dict(interface_defaults.get("bounds", {}))
 
-def get_nominal_K1L(interface, quad_name):
+def get_nominal_quad_setting(interface, quad_name):
     quads = interface.get_quadrupoles()
     names = list(quads["names"])
     strengths = np.asarray(quads["bdes"], dtype=float)
@@ -99,28 +100,28 @@ def build_twiss_samples_quasirandom(bounds, n_samples):
     unit_points = np.asarray(rft.qrand(int(n_samples), 6), dtype=float)
     return lower + unit_points * (upper - lower)
 
-def build_k1l_set(rng, K1L_nominal, relative_k_change, number_of_k1l_per_twiss_set, jitter_fraction=0.05):
-    delta_min = float(relative_k_change[0])
-    delta_max = float(relative_k_change[1])
-    number_of_k1l_per_twiss_set = int(number_of_k1l_per_twiss_set)
+def build_quad_setting_set(rng, nominal_quad_setting, relative_setting_change, number_of_settings_per_twiss_set, jitter_fraction=0.05):
+    delta_min = float(relative_setting_change[0])
+    delta_max = float(relative_setting_change[1])
+    number_of_settings_per_twiss_set = int(number_of_settings_per_twiss_set)
 
-    if number_of_k1l_per_twiss_set <= 1:
+    if number_of_settings_per_twiss_set <= 1:
         relative_values = np.array([float(rng.uniform(delta_min, delta_max))], dtype=float)
     else:
-        relative_values = np.linspace(delta_min, delta_max, number_of_k1l_per_twiss_set, dtype=float)
+        relative_values = np.linspace(delta_min, delta_max, number_of_settings_per_twiss_set, dtype=float)
         if jitter_fraction > 0:
-            step = (delta_max - delta_min) / max(number_of_k1l_per_twiss_set - 1, 1)
+            step = (delta_max - delta_min) / max(number_of_settings_per_twiss_set - 1, 1)
             relative_values += rng.uniform(-jitter_fraction * step, jitter_fraction * step, size = relative_values.shape)
             relative_values = np.clip(relative_values, delta_min, delta_max)
             relative_values[0] = delta_min
             relative_values[-1] = delta_max
-    return K1L_nominal * (1.0 + relative_values)
+    return nominal_quad_setting * (1.0 + relative_values)
 
 
-def append_dataset(quad_name, screens, interface, k1l_relative_change, n_samples, existing_file, new_bounds):
+def append_dataset(quad_name, screens, interface, quad_setting_relative_change, n_samples, existing_file, new_bounds):
     existing = np.load(existing_file, allow_pickle=True)
     tmp_file = Path(existing_file).with_name("tmp_dataset.npz")
-    generate_dataset(quad_name=quad_name, screens=screens, interface=interface, k1l_relative_change=k1l_relative_change, n_samples=n_samples, output_file=tmp_file, log_callback=print, progress_callback=None, stop_checker=None, new_bounds=new_bounds)
+    generate_dataset(quad_name=quad_name, screens=screens, interface=interface, quad_setting_relative_change=quad_setting_relative_change, n_samples=n_samples, output_file=tmp_file, log_callback=print, progress_callback=None, stop_checker=None, new_bounds=new_bounds)
     new = np.load(tmp_file, allow_pickle=True)
 
     existing_target = str(existing["target_observable"].item()) if "target_observable" in existing.files else "sigma2"
@@ -145,15 +146,16 @@ def append_dataset(quad_name, screens, interface, k1l_relative_change, n_samples
         screens=existing["screens"],
         quad_name=existing["quad_name"],
         reference_screen=existing["reference_screen"],
-        K1L_relative_change=existing["K1L_relative_change"],
+        quad_setting_relative_change=existing["quad_setting_relative_change"],
         bounds=existing["bounds"],
         bounds_names=existing["bounds_names"],
         interface_class_name=existing["interface_class_name"],
         interface_module=existing["interface_module"],
-        K1L_nominal=existing["K1L_nominal"],
+        nominal_quad_setting=existing["nominal_quad_setting"],
+        quad_value_unit=existing["quad_value_unit"],
         n_requested_samples=len(X),
-        n_twiss_combinations=len(X) // int(existing["n_k1l_per_twiss_set"]),
-        n_k1l_per_twiss_set=existing["n_k1l_per_twiss_set"],
+        n_twiss_combinations=len(X) // int(existing["n_settings_per_twiss_set"]),
+        n_settings_per_twiss_set=existing["n_settings_per_twiss_set"],
     )
 
     tmp_file.unlink()
@@ -165,7 +167,7 @@ def append_dataset(quad_name, screens, interface, k1l_relative_change, n_samples
         "output_file": str(existing_file),
     }
 
-def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_samples, output_file, log_callback, progress_callback, stop_checker, new_bounds = None):
+def generate_dataset(quad_name, screens, interface, quad_setting_relative_change, n_samples, output_file, log_callback, progress_callback, stop_checker, new_bounds = None):
 
     rng = np.random.default_rng(RANDOM_SEED)
     log = log_callback if callable(log_callback) else print
@@ -174,7 +176,7 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
     n_samples = int(n_samples)
     output_file = Path(output_file)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    K1L_nominal = get_nominal_K1L(interface, quad_name)
+    nominal_quad_setting = get_nominal_quad_setting(interface, quad_name)
 
     if new_bounds is not None:
         bounds = dict(new_bounds)
@@ -182,16 +184,16 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
     else:
         bounds = _get_interface_bounds(interface)
 
-    n_k1l_per_twiss_set = min(N_K1_PER_TWISS, max(1, n_samples))
-    n_twiss_combinations = max(1, int(np.ceil(n_samples / n_k1l_per_twiss_set)))
-    n_total = n_k1l_per_twiss_set * n_twiss_combinations
+    n_settings_per_twiss_set = min(N_SETTINGS_PER_TWISS, max(1, n_samples))
+    n_twiss_combinations = max(1, int(np.ceil(n_samples / n_settings_per_twiss_set)))
+    n_total = n_settings_per_twiss_set * n_twiss_combinations
     twiss_samples = build_twiss_samples_quasirandom(bounds, n_twiss_combinations)
 
-    log(f"{quad_name} nominal K1L: {K1L_nominal}")
-    log(f"Generating {n_samples} rows with {n_twiss_combinations} twiss combinations and {n_k1l_per_twiss_set} K1Ls per sample.")
+    log(f"{quad_name} nominal quadrupole setting: {nominal_quad_setting}")
+    log(f"Generating {n_samples} rows with {n_twiss_combinations} twiss combinations and {n_settings_per_twiss_set} quadrupole settings per sample.")
     log("Twiss sampling: 6D RF-Track quasi-random sequence.")
     log(f"Screens: {screens}")
-    log(f"K1L relative change: {k1l_relative_change}")
+    log(f"Quadrupole setting relative change: {quad_setting_relative_change}")
     log(f"Output file: {output_file}")
 
     twiss_group_ids = []
@@ -209,12 +211,12 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
             break
         twiss_parameters = twiss_samples[twiss_combination]
         emit_x_norm, beta_x0, alpha_x0, emit_y_norm, beta_y0, alpha_y0 = twiss_parameters
-        K1L_array = build_k1l_set(rng, K1L_nominal, k1l_relative_change, n_k1l_per_twiss_set)
+        quad_setting_array = build_quad_setting_set(rng, nominal_quad_setting, quad_setting_relative_change, n_settings_per_twiss_set)
         try:
             pred_sigx, pred_sigy = interface.predict_emittance_scan_response(
                 quad_name=quad_name,
                 screens=screens,
-                K1L_values=np.asarray(K1L_array, dtype=float),
+                quad_setting_values=np.asarray(quad_setting_array, dtype=float),
                 emit_x=emit_x_norm,
                 emit_y=emit_y_norm,
                 beta_x0=beta_x0,
@@ -224,12 +226,12 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
                 reference_screen=screens[0],
                 stop_checker=None,
             )
-            required_shape = (len(K1L_array), len(screens))
+            required_shape = (len(quad_setting_array), len(screens))
             if pred_sigx.shape != required_shape or pred_sigy.shape != required_shape:
                 raise RuntimeError(f"Shapes are mismatched.")
 
-            for k_idx, K1L in enumerate(K1L_array):
-                parameters = np.array([emit_x_norm, beta_x0, alpha_x0, emit_y_norm, beta_y0, alpha_y0, float(K1L)], dtype=float)
+            for k_idx, quad_setting in enumerate(quad_setting_array):
+                parameters = np.array([emit_x_norm, beta_x0, alpha_x0, emit_y_norm, beta_y0, alpha_y0, float(quad_setting)], dtype=float)
                 sigma = np.concatenate([pred_sigx[k_idx,:], pred_sigy[k_idx,:]]).astype(float)
 
                 if not (np.all(np.isfinite(parameters)) and np.all(np.isfinite(sigma))):
@@ -248,13 +250,13 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
                         twiss_group_ids=twiss_group_ids,
                         screens=screens,
                         quad_name=quad_name,
-                        k1l_relative_change=k1l_relative_change,
+                        quad_setting_relative_change=quad_setting_relative_change,
                         bounds=bounds,
                         interface=interface,
-                        K1L_nominal=K1L_nominal,
+                        nominal_quad_setting=nominal_quad_setting,
                         n_samples=n_samples,
                         n_twiss_combinations=n_twiss_combinations,
-                        n_k1l_per_twiss_set=n_k1l_per_twiss_set,
+                        n_settings_per_twiss_set=n_settings_per_twiss_set,
                     )
 
                     last_checkpoint_rows = processed_rows
@@ -291,13 +293,13 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
         twiss_group_ids=twiss_group_ids,
         screens=screens,
         quad_name=quad_name,
-        k1l_relative_change=k1l_relative_change,
+        quad_setting_relative_change=quad_setting_relative_change,
         bounds=bounds,
         interface=interface,
-        K1L_nominal=K1L_nominal,
+        nominal_quad_setting=nominal_quad_setting,
         n_samples=n_samples,
         n_twiss_combinations=n_twiss_combinations,
-        n_k1l_per_twiss_set=n_k1l_per_twiss_set,
+        n_settings_per_twiss_set=n_settings_per_twiss_set,
     )
 
     log("Done.")
@@ -313,5 +315,5 @@ def generate_dataset(quad_name, screens, interface, k1l_relative_change, n_sampl
         "failed": int(failed),
         "valid": int(X.shape[0]),
         "n_twiss_combinations": int(n_twiss_combinations),
-        "n_k1l_per_twiss_set": int(n_k1l_per_twiss_set),
+        "n_settings_per_twiss_set": int(n_settings_per_twiss_set),
     }
