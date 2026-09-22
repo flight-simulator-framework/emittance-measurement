@@ -11,10 +11,10 @@ matplotlib.use("QtAgg")
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
-class EmittanceEvolution(QDialog):
+class BeamEvolution(QDialog):
     def __init__(self, interface, parent=None, screens=None):
         super().__init__(parent)
-        self.setWindowTitle("Emittance evolution")
+        self.setWindowTitle("Emittance and beta function evolution")
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
         self.setMinimumSize(800, 500)
         self.resize(1000, 650)
@@ -34,9 +34,14 @@ class EmittanceEvolution(QDialog):
 
     def _display_beam_evolution(self, screens = None, session = None, result = None):
         self.figure.clear()
-        axes = self.figure.add_subplot(111)
-        axes.set_xlabel("S [m]")
-        axes.set_ylabel("Normalized emittance [mm * mrad]")
+        axes_eps = self.figure.add_subplot(211) # rows, columns, plot id
+        axes_beta = self.figure.add_subplot(212)
+
+        axes_eps.set_xlabel("S [m]")
+        axes_eps.set_ylabel("Normalized emittance [mm * mrad]")
+
+        axes_beta.set_xlabel("S [m]")
+        axes_beta.set_ylabel("Beta function [m]")
         self.canvas.draw_idle() # refreshes the graph in a popup
 
         if result is None:
@@ -51,7 +56,25 @@ class EmittanceEvolution(QDialog):
         alpha_y0 = result["alpha_y0"]
 
         simulated_interface = getattr(self.interface, "tracking_interface", self.interface)
-
         tracking_results = simulated_interface.get_beam_evolution(quad_name = session["quad_name"], screens = session["screens"], quad_setting = float(result["quad_setting_0"]), quad_value_unit = session["quad_value_unit"], beam_parameters = result)
-        print(tracking_results["emitt_x"])
-        print(tracking_results["emitt_y"])
+
+        print("Emitt x: ", tracking_results["emitt_x"])
+        print("Emitt y: ", tracking_results["emitt_y"])
+        print("Beta x: ", tracking_results["beta_x"])
+        print("Beta y: ", tracking_results["beta_y"])
+        print("Screen positions: ", tracking_results["S"])
+
+        positions = tracking_results["S"]
+        emit_x = tracking_results["emitt_x"][0] # normalized, mm*mrad
+        emit_y = tracking_results["emitt_y"][0] # normalized, mm*mrad
+        beta_x = tracking_results["beta_x"][0]
+        beta_y = tracking_results["beta_y"][0]
+        axes_eps.plot(positions, emit_x, "o--", label = "x")
+        axes_eps.plot(positions, emit_y, "o--", label = "y")
+        axes_beta.plot(positions, beta_x, "o--", label = "x")
+        axes_beta.plot(positions, beta_y, "o--", label = "y")
+
+        axes_eps.legend()
+        axes_beta.legend()
+        self.canvas.draw_idle()
+

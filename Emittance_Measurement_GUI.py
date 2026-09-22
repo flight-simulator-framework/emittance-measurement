@@ -33,7 +33,7 @@ from machine_interfaces.Backend.LogConsole import LogConsole
 # from emittance_measurement.EM_helpers.PhaseSpaceGraphs import PhaseSpaces
 from emittance_measurement.EM_helpers.ShowBeamline import ShowBeamline
 from emittance_measurement.EM_helpers.DisplayScreenImages import DisplayScreenImages
-from emittance_measurement.EM_helpers.EmittanceEvolution import EmittanceEvolution
+from emittance_measurement.EM_helpers.BeamEvolution import BeamEvolution
 from emittance_measurement.EM_helpers.FitBounds import BoundsForParameter
 from emittance_measurement.EM_helpers.ScanCurrentRanges import ScanCurrentRanges
 from emittance_measurement.EM_helpers.ScanPointSelection import ScanPointSelection
@@ -253,7 +253,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.log_console_button.clicked.connect(self._show_console_log)
         self.phase_spaces_button.clicked.connect(self._show_phase_spaces)
         self.display_screen_images_button.clicked.connect(self._show_screen_images)
-        self.show_evolution_button.clicked.connect(self._show_emittance_evolution)
+        self.show_evolution_button.clicked.connect(self._show_beam_evolution)
         self.pause_button.clicked.connect(self._pause_task)
         self.resume_button.clicked.connect(self._resume_task)
         self._scan_pause_requested = False
@@ -423,13 +423,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.beamline_view.raise_()
         self.beamline_view.activateWindow()
 
-    def _show_emittance_evolution(self):
+    def _show_beam_evolution(self):
         _, screens = self._get_selection()
         if self.beta_eps_evolution is None:
-            self.beta_eps_evolution = EmittanceEvolution(interface=self.interface, parent=self, screens=screens)
+            self.beta_eps_evolution = BeamEvolution(interface=self.interface, parent=self, screens=screens)
         session = self.session if isinstance(self.session, dict) else {}
-        self.beta_eps_evolution._display_beam_evolution(
-            screens=screens, session=session, result=session.get("optimization_result"))
+        self.beta_eps_evolution._display_beam_evolution(screens=screens, session=session, result=session.get("optimization_result"))
         self.beta_eps_evolution.show()
         self.beta_eps_evolution.raise_()
         self.beta_eps_evolution.activateWindow()
