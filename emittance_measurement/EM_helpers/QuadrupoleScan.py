@@ -36,10 +36,6 @@ class QuadrupoleScan(SaveOrLoad):
         os.makedirs(session_dir, exist_ok=True)
         return session_dir
 
-    def _quad_value_unit(self, quad_name):
-        quadrupoles = self.interface.get_quadrupoles([quad_name])
-        return str(quadrupoles.get("value_unit", "1/m"))
-
     def current_to_quad_setpoint(self, quad_name, current_A, quad_value_unit):
         if quad_value_unit == "A":
             return float(current_A)

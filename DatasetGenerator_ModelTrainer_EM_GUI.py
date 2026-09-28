@@ -227,11 +227,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
 
         self._filter_quadrupoles_in_gui()
 
-    def _pause_ml(self):
-        if self._is_running:
-            self._pause_requested = True
-            return
-
     def _resume_task(self):
         if self._pause_requested:
             self.log("Resume is not yet implemented")
@@ -361,13 +356,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
                 return str(machine_name)
 
         return type(self.interface).__name__
-
-    def _get_all_screens_in_lattice_order(self):
-        screens = []
-        for i in range(self.screens_list.count()):
-            item = self.screens_list.item(i)
-            screens.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
-        return screens
 
     def _get_default_output_dir(self, quad_name, screens):
         if len(screens) == self.screens_list.count():
