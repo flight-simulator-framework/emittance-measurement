@@ -987,7 +987,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         unit = self._quadrupole_value_unit(session)
         if unit == "A":
             return "Quadrupole current [A]"
-        return f"Quadrupole setting [{unit}]"
+        return f"Quadrupole strength [{unit}]"
 
     def _update_fit_panel(self, result):
         self.result_quad.setText(str(result["quad_name"]))
