@@ -504,7 +504,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.bounds_units = {
             "emit_x_norm": "mm·mrad", "beta_x0": "m", "alpha_x0": "",
             "emit_y_norm": "mm·mrad", "beta_y0": "m", "alpha_y0": "",
-            "quad_setting_0": self._quadrupole_value_unit(), "quad_dx0": "mm", "quad_dy0": "mm", "quad_roll": "mrad",
+            "quad_setting_0": "A", "quad_dx0": "mm", "quad_dy0": "mm", "quad_roll": "mrad",
             "energy_pref": "MeV/c"
 
         }
@@ -522,9 +522,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             "energy_pref": "Beam energy"
         }
         self._bounds_button_base_text = {param: button.text() for param, button in self.bounds_buttons.items()}
-        quad_value_unit = self.bounds_units["quad_setting_0"]
-        self._bounds_button_base_text[
-            "quad_setting_0"] = "I₀ [A]" if quad_value_unit == "A" else f"Setting₀ [{quad_value_unit}]"
+        self._bounds_button_base_text["quad_setting_0"] = "I₀ [A]"
         self._bounds_values = {}
         for param, button in self.bounds_buttons.items():
             button.clicked.connect(lambda _checked=False, parameter=param: self._edit_bounds(parameter))
@@ -551,8 +549,6 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         return ""
 
     def _edit_bounds(self, param):
-        if param == "quad_setting_0":
-            self.bounds_units[param] = self._quadrupole_value_unit()
         low, high = self._bounds_values.get(param, (0.0, 0.0))
         dialog = BoundsForParameter(self.bounds_display_names.get(param, param), parent=self,
                                     unit=self.bounds_units.get(param, ""), hint=self._bounds_hint(param))
@@ -577,17 +573,14 @@ class MainWindow(QMainWindow, QuadrupoleScan):
     def _set_default_quad_strength_bounds_from_session(self, session):
         if session is None:
             return
-        unit = self._quadrupole_value_unit(session)
-        self.bounds_units["quad_setting_0"] = unit
-        self._bounds_button_base_text["quad_setting_0"] = "I₀ [A]" if unit == "A" else f"Setting₀ [{unit}]"
-        initial_quadrupole_setting = float(session.get("initial_quadrupole_setting", np.nan))
-        if not np.isfinite(initial_quadrupole_setting) or np.isclose(initial_quadrupole_setting, 0.0):
-            scanned_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
-            initial_quadrupole_setting = float(np.nanmedian(scanned_values)) if scanned_values.size else np.nan
-        if not np.isfinite(initial_quadrupole_setting):
+        current_0 = float(session.get("current_0", np.nan))
+        if not np.isfinite(current_0) or np.isclose(current_0, 0.0):
+            scanned_currents = np.asarray(session.get("current_values", []), dtype=float)
+            current_0 = float(np.nanmedian(scanned_currents)) if scanned_currents.size else np.nan
+        if not np.isfinite(current_0):
             self._refresh_bounds_button("quad_setting_0")
             return
-        low, high = sorted((0.7 * initial_quadrupole_setting, 1.3 * initial_quadrupole_setting))
+        low, high = sorted((0.7 * current_0, 1.3 * current_0))
         self._set_bounds_value("quad_setting_0", low, high)
 
     def _set_bound_row_enabled(self, param, enabled):
@@ -652,10 +645,9 @@ class MainWindow(QMainWindow, QuadrupoleScan):
                 if not np.isfinite(sigx[step_index, screen_index]) and not np.isfinite(sigy[step_index, screen_index]):
                     if (step_index, screen_index) not in self._excluded_points:
                         continue
-                quad_value = currents[step_index] if unit != "A" and step_index < currents.size else quad_values[
-                    step_index]
+                quad_value = (float(currents[step_index]) if step_index < currents.size else self.quad_setpoint_to_current(session["quad_name"], quad_values[step_index], unit))
                 points.append({"step": step_index, "screen_index": screen_index, "screen": screen,
-                               "quad_value": quad_values[step_index], "quad_unit": unit,
+                               "quad_value": quad_value, "quad_unit": "A",
                                "sigx": sigx[step_index, screen_index], "sigy": sigy[step_index, screen_index]})
         return points
 
@@ -725,14 +717,10 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         bdes = np.asarray(quadrupoles.get("bdes", []), dtype=float)
         if bdes.size == 0 or not np.isfinite(bdes[0]):
             return f"{quad_name} readback: not available."
-        value = float(bdes[0])
-        if unit == "A":
-            return f"{quad_name} readback: {value:.3f} A"
-        iact = np.asarray(quadrupoles.get("iact", []), dtype=float)
-        current = float(iact[0]) if iact.size and np.isfinite(iact[0]) else self.quad_setpoint_to_current(quad_name,
-                                                                                                          value, unit)
-        current_text = f" = {current:.3f} A" if np.isfinite(current) else " (no A calibration)"
-        return f"{quad_name} readback: setting = {value:.5g} {unit}{current_text}"
+        current = self.quad_setpoint_to_current(quad_name, float(bdes[0]), unit)
+        if not np.isfinite(current):
+            return f"{quad_name} readback: no A calibration."
+        return f"{quad_name} readback: {current:.3f} A"
 
     def _update_quad_readback_label(self):
         self.quad_readback_label.setText(self._quad_readback_text())
@@ -960,34 +948,9 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         self.result_energy_pref.setText("-")
         self.result_reference_screen.setText("-")
 
-    def _interface_quad_value_unit(self):
-        cached_unit = getattr(self, "_cached_quad_value_unit", None)
-        if cached_unit is not None:
-            return cached_unit
-        units = (self._get_interface_initial_settings() or {}).get("units", {})
-        unit = str(units.get("quadrupole_strength", ""))
-        if not unit:
-            try:
-                quadrupoles = list(getattr(self.interface, "quadrupoles", []))
-                unit = str(self.interface.get_quadrupoles(quadrupoles[:1]).get("value_unit", "1/m"))
-            except Exception:
-                unit = "1/m"
-        self._cached_quad_value_unit = unit
-        return unit
-
     def _quadrupole_value_unit(self, session=None):
-        session = self.session if session is None else session
-        if isinstance(session, dict) and session.get("mode") == "multi_quad_scan":
-            session = self._get_session_for_selected_quad(session) or session
-        if not isinstance(session, dict):
-            return self._interface_quad_value_unit()
-        return str(session.get("quad_value_unit", "1/m"))
-
-    def _quadrupole_scan_axis_label(self, session=None):
-        unit = self._quadrupole_value_unit(session)
-        if unit == "A":
-            return "Quadrupole current [A]"
-        return f"Quadrupole strength [{unit}]"
+        session = self._get_session_for_selected_quad(self.session if session is None else session)
+        return str((session or {}).get("quad_value_unit", "1/m"))
 
     def _update_fit_panel(self, result):
         self.result_quad.setText(str(result["quad_name"]))
@@ -1011,9 +974,8 @@ class MainWindow(QMainWindow, QuadrupoleScan):
                 return f"{value_text} {unit}".rstrip()
             return f"{value_text} ± {error_text} {unit}".rstrip()
 
-        quad_strength_text = fmt_value(
-            result.get("quad_setting_0"), f" {self._quadrupole_value_unit()}"
-        )
+        quad_current_0 = self.quad_setpoint_to_current(result["quad_name"], result.get("quad_setting_0", np.nan), self._quadrupole_value_unit())
+        quad_strength_text = fmt_value(quad_current_0, " A")
         if result.get("fit_quadrupole_strength", False) and quad_strength_text != "-":
             quad_strength_text += " (fit)"
         elif quad_strength_text != "-":
@@ -1052,7 +1014,7 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         fig.clear()
         ax = fig.add_subplot(111)
         ax.set_title("Quadrupole scan")
-        ax.set_xlabel(self._quadrupole_scan_axis_label())
+        ax.set_xlabel("Quadrupole current [A]")
         ax.set_ylabel("Beam size")
         ax.grid(True, alpha=0.3)
         self.canvas.draw()
@@ -1092,13 +1054,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         session_to_plot = self._get_session_for_selected_quad(self._session_without_excluded_points(session))
         if session_to_plot is None:
             return
-        quad_setting_values = np.asarray(session_to_plot["quad_setting_values"], dtype=float)
+        current_values = np.asarray(session_to_plot["current_values"], dtype=float)
         sigx = np.asarray(session_to_plot["sigx_mean"], dtype=float)
         sigy = np.asarray(session_to_plot["sigy_mean"], dtype=float)
         screens = list(session_to_plot["screens"])
         quad_name = session_to_plot.get("quad_name", "-")
         em_sigma_unit = session_to_plot.get("sigma_unit", self._get_interface_units())
-        quad_axis_label = self._quadrupole_scan_axis_label(session_to_plot)
         fig = self.canvas.figure
         fig.clear()
 
@@ -1130,12 +1091,12 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             mask_x = np.isfinite(sigx[:, i])
             mask_y = np.isfinite(sigy[:, i])
             color = color_cycle[i % len(color_cycle)]
-            ax1.plot(quad_setting_values[mask_x], sigx[mask_x, i], 'o--', color=color, label=screen)
-            ax2.plot(quad_setting_values[mask_y], sigy[mask_y, i], 'o--', color=color, label=screen)
+            ax1.plot(current_values[mask_x], sigx[mask_x, i], 'o--', color=color, label=screen)
+            ax2.plot(current_values[mask_y], sigy[mask_y, i], 'o--', color=color, label=screen)
         ax1.set_title(f"Quadrupole scan: {quad_name}")
         ax1.set_ylabel(f"sigx [{em_sigma_unit}]")
         ax2.set_ylabel(f"sigy [{em_sigma_unit}]")
-        ax2.set_xlabel(quad_axis_label)
+        ax2.set_xlabel("Quadrupole current [A]")
 
         ax1.grid(True, alpha=0.3)
         ax2.grid(True, alpha=0.3)
@@ -1168,6 +1129,11 @@ class MainWindow(QMainWindow, QuadrupoleScan):
             fit_quad_setting_values = np.asarray(fit_quad_setting_values, dtype=float)
         else:
             fit_quad_setting_values = quad_setting_values
+
+        current_values = np.asarray(plotted_session["current_values"], dtype=float)
+        quad_name = plotted_session["quad_name"]
+        quad_unit = self._quadrupole_value_unit(plotted_session)
+        fit_current_values = np.array([self.quad_setpoint_to_current(quad_name, value, quad_unit) for value in fit_quad_setting_values], dtype=float)
         fig = self.canvas.figure
         fig.clear()
 
@@ -1188,22 +1154,21 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         for prediction_i, screen in enumerate(screens):
             session_i = session_screens.index(screen)
             color = color_cycle[session_i % len(color_cycle)]
-            ax1.plot(quad_setting_values, sigx[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
+            ax1.plot(current_values, sigx[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
             fit_x = pred_x[:, prediction_i] if prediction_observable == "sigma" else np.sqrt(
                 np.maximum(pred_x[:, prediction_i], 0.0))
-            ax1.plot(fit_quad_setting_values, fit_x, "-", color=color, linewidth=2.0, label=f"{screen} fit")
-            ax2.plot(quad_setting_values, sigy[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
+            ax1.plot(fit_current_values, fit_x, "-", color=color, linewidth=2.0, label=f"{screen} fit")
+            ax2.plot(current_values, sigy[:, session_i], "o--", color=color, linewidth=1.0, label=f"{screen} data")
             fit_y = pred_y[:, prediction_i] if prediction_observable == "sigma" else np.sqrt(
                 np.maximum(pred_y[:, prediction_i], 0.0))
-            ax2.plot(fit_quad_setting_values, fit_y, "-", color=color, linewidth=2.0, label=f"{screen} fit")
+            ax2.plot(fit_current_values, fit_y, "-", color=color, linewidth=2.0, label=f"{screen} fit")
 
         unit = self.session.get("sigma_unit", self._get_interface_units())
-        quad_axis_label = self._quadrupole_scan_axis_label(self.session)
 
         ax1.set_title(f"Quadrupole scan: {self.session.get('quad_name', '-')}")
         ax1.set_ylabel(f"sigx [{unit}]")
         ax2.set_ylabel(f"sigy [{unit}]")
-        ax2.set_xlabel(quad_axis_label)
+        ax2.set_xlabel("Quadrupole current [A]")
 
         ax1.grid(True, alpha=0.3)
         ax2.grid(True, alpha=0.3)
@@ -1393,6 +1358,9 @@ class MainWindow(QMainWindow, QuadrupoleScan):
         if session_was_missing:
             self._set_default_quad_strength_bounds_from_session(self.session)
         bounds = self._get_bounds_from_gui()
+        if "quad_setting_0" in bounds:  # GUI bounds are in A, the fit works in the interface's quadrupole unit
+            quad_name = self._get_session_for_selected_quad(self.session)["quad_name"]
+            bounds["quad_setting_0"] = sorted(self.current_to_quad_setpoint(quad_name, current, self._quadrupole_value_unit()) for current in bounds["quad_setting_0"])
         if self._is_optimizing:
             return
         self._is_optimizing = True
