@@ -21,7 +21,6 @@ except ImportError:
     from PyQt5.QtGui import QPainter, QPixmap, QFont
 from machine_interfaces.Backend.SaveOrLoad import SaveOrLoad
 from emittance_measurement.MachineLearning.ML_dataset import generate_dataset, _get_interface_initial_settings, append_dataset
-from emittance_measurement.MachineLearning.R_matrix_dataset import generate_dataset as generate_linear_response_dataset
 from emittance_measurement.MachineLearning.ML_train import TrainModel
 
 class SPositionDelegate(QStyledItemDelegate):
@@ -63,7 +62,7 @@ class DatasetGeneratorWorker(QObject):
     progress = pyqtSignal( int, int)
     log_message = pyqtSignal(str)
 
-    def __init__(self, interface, quad_name, screens, n_samples, relative_setting_change, output_file, linear_response=False):
+    def __init__(self, interface, quad_name, screens, n_samples, relative_setting_change, output_file):
         super().__init__()
         self.interface = interface
         self.quad_name = quad_name
@@ -71,41 +70,26 @@ class DatasetGeneratorWorker(QObject):
         self.n_samples = n_samples
         self.quad_setting_relative_change = relative_setting_change
         self.output_file = output_file
-        self.linear_response = linear_response
         self.stop_requested = False
 
     def request_stop(self):
         self.stop_requested = True
 
-    def _should_stop(self):
-        return bool(self.stop_requested)
-
     def _emit_log(self, text):
         self.log_message.emit(str(text))
 
-    def _emit_progress(self, current, total):
-        self.progress.emit(int(current), int(total))
-
     def run(self):
         try:
-            if self.linear_response:
-                self._emit_log(f"Generating linear response dataset: {self.output_file}")
-                result = generate_linear_response_dataset(
-                    quad_name=self.quad_name, screens=self.screens, interface=self.interface,
-                    quad_setting_relative_change=(0.0, 0.0), n_samples=self.n_samples, output_file=self.output_file,
-                    log_callback=self._emit_log, progress_callback=self._emit_progress, stop_checker=self._should_stop,
-                )
-            else:
-                new_bounds = {
-                    "emit_x_norm": [3.5, 8.0],
-                    "beta_x0": [0.5, 3.5],
-                    "alpha_x0": [-3.0, 1.0],
-                    "emit_y_norm": [0.005, 0.2],
-                    "beta_y0": [6.0, 16.0],
-                    "alpha_y0": [-3.0, 2.0],
-                }
-                self._emit_log(f"Appending to dataset: {self.output_file}")
-                result = append_dataset(quad_name = self.quad_name, screens = self.screens, interface = self.interface, quad_setting_relative_change = self.quad_setting_relative_change, n_samples = self.n_samples, existing_file=self.output_file, new_bounds=new_bounds)
+            new_bounds = {
+                "emit_x_norm": [3.5, 8.0],
+                "beta_x0": [0.5, 3.5],
+                "alpha_x0": [-3.0, 1.0],
+                "emit_y_norm": [0.005, 0.2],
+                "beta_y0": [6.0, 16.0],
+                "alpha_y0": [-3.0, 2.0],
+            }
+            self._emit_log(f"Appending to dataset: {self.output_file}")
+            result = append_dataset(quad_name = self.quad_name, screens = self.screens, interface = self.interface, quad_setting_relative_change = self.quad_setting_relative_change, n_samples = self.n_samples, existing_file=self.output_file, new_bounds=new_bounds)
 
             self.finished.emit(result)
 
@@ -491,23 +475,16 @@ class MainWindow(QMainWindow, SaveOrLoad):
             return
 
         quad_name = quadrupoles[0]
-        linear_response = self.linear_response_checkbox.isChecked()
         relative_setting_change = (float(self.quad_setting_relative_min_spin.value()), float(self.quad_setting_relative_max_spin.value()))
-        if not linear_response and relative_setting_change[0] >= relative_setting_change[1]:
+        if relative_setting_change[0] >= relative_setting_change[1]:
             QMessageBox.warning(self, "Error", "The minimum relative quadrupole setting must be smaller than the maximum.")
             return
         n_samples = int(self.samples_spin.value())
         output_dir = self.output_dir_edit.text().strip()
         if not output_dir:
-            if linear_response:
-                output_dir = os.path.join(
-                    os.path.dirname(emittance_measurement.__file__), "MachineLearning",
-                    self._get_machine_ml_folder_name(), str(quad_name),
-                )
-            else:
-                output_dir = self._get_default_output_dir(quad_name, screens)
+            output_dir = self._get_default_output_dir(quad_name, screens)
         os.makedirs(output_dir, exist_ok=True)
-        output_file = os.path.join(output_dir, "Linear_Response_dataset.npz" if linear_response else "EM_dataset.npz")
+        output_file = os.path.join(output_dir, "EM_dataset.npz")
         self.log(f"Dataset output directory: {output_dir}")
         self._stop_requested = False
         self._is_running = True
@@ -523,7 +500,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
             n_samples=n_samples,
             relative_setting_change=relative_setting_change,
             output_file=output_file,
-            linear_response=linear_response,
         )
         worker.moveToThread(thread)
         worker.log_message.connect(self.log)

@@ -755,15 +755,6 @@ class MainWindow(QMainWindow, QuadrupoleScan):
     def _on_computation_mode_changed(self, text):
         self.computation_mode = ComputationMode(text)
         is_linear_mode = self.computation_mode == ComputationMode.LRM
-        if self.steps_settings.isEnabled():
-            if is_linear_mode:
-                if self.steps_settings.value() > 0:
-                    self._scan_steps_before_linear_mode = self.steps_settings.value()
-                self.steps_settings.setValue(0)
-                self.quadrupoles_list.setEnabled(True)
-            elif self.steps_settings.value() == 0:
-                self.steps_settings.setValue(getattr(self, "_scan_steps_before_linear_mode", 5))
-
         widgets_to_disable = [self.boundsSettingsGroup, self.bounds_quad_group, self.localOptimizationSettingsGroup]
         for widget in widgets_to_disable:
             widget.setEnabled(not is_linear_mode)

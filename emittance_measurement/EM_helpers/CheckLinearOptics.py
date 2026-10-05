@@ -53,6 +53,9 @@ def _solve_plane(R1, R2, sigma, u, valid):
             f"Estimate is unphysical (eps_beta={eps_beta:.4g}, eps_gamma={eps_gamma:.4g}, det={eps_squared:.4g}):")
     return emit_geom, beta0, alpha0, reduced_chi2, unconstrained_is_physical
 
+def _sigma2(R1, R2, emit_geom, beta0, alpha0):
+    return emit_geom * (beta0 * R1 ** 2 - 2.0 * alpha0 * R1 * R2 + (1.0 + alpha0 ** 2) / beta0 * R2 ** 2)
+
 def estimate_twiss_use_linear_optics_start(interface, quad_name, screens, quad_setting_values, sig_x, sig_y, u_x, u_y, valid_x, valid_y, beta_gamma):
 
     transport = interface.get_R_matrix_scan(quad_name=quad_name, screens=screens, quad_setting_values=quad_setting_values)
@@ -76,4 +79,6 @@ def estimate_twiss_use_linear_optics_start(interface, quad_name, screens, quad_s
         "reduced_chi2_y": reduced_chi2_y,
         "unconstrained_is_physical_x": physical_x,
         "unconstrained_is_physical_y": physical_y,
+        "pred_x": _sigma2(R11, R12, emit_x_geom, beta_x0, alpha_x0),
+        "pred_y": _sigma2(R33, R34, emit_y_geom, beta_y0, alpha_y0),
     }

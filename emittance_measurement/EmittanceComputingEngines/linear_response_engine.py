@@ -1,6 +1,5 @@
 import numpy as np
-import os
-from emittance_measurement.EM_helpers.LinearResponse import LinearResponse
+from emittance_measurement.EM_helpers.CheckLinearOptics import estimate_twiss_use_linear_optics_start
 from emittance_measurement.EmittanceComputingEngines.AbstractComputingEngine import AbstractComputingEngine
 
 class LinearResponseEngine(AbstractComputingEngine):
@@ -9,62 +8,31 @@ class LinearResponseEngine(AbstractComputingEngine):
     display_name = "Linear R-response model"
 
     def fit_from_session(self, session, bounds=None):
-        screens = list(session.get("screens", []))
-        quad_name = session.get("quad_name")
-        quad_setting_values = np.asarray(session.get("quad_setting_values", []), dtype=float)
-
-        sigx = np.asarray(session.get("sigx_mean", []), dtype=float)
-        sigy = np.asarray(session.get("sigy_mean", []), dtype=float)
-
-        if not quad_name:
-            raise ValueError("Session does not contain quad_name")
-        if len(screens) < 3:
-            raise RuntimeError("Direct linear R-response fit requires at least 3 screens.")
-        if quad_setting_values.size != 1:
-            raise RuntimeError("Direct linear R-response fit works only for a fixed quadrupole setting, so use steps = 0.")
-        if sigx.ndim != 2 or sigy.ndim != 2:
-            raise ValueError("Invalid sigma array shape")
-        if sigx.shape != sigy.shape:
-            raise ValueError("sigx and sigy shapes do not match")
-        if sigx.shape[0] != quad_setting_values.size:
-            raise ValueError("quad_setting_values and sigma arrays have incompatible lengths")
-
-        try:
-            quad_setting_0_readback = float(session.get("initial_quadrupole_setting", quad_setting_values[0]))
-        except Exception:
-            quad_setting_0_readback = float(quad_setting_values[0])
-
-        sigma2_x = np.asarray(sigx ** 2, dtype=float)
-        sigma2_y = np.asarray(sigy ** 2, dtype=float)
+        screens = list(session["screens"])
+        quad_name = session["quad_name"]
+        quad_setting_values = np.asarray(session["quad_setting_values"], dtype=float)
+        sigx = np.asarray(session["sigx_mean"], dtype=float)
+        sigy = np.asarray(session["sigy_mean"], dtype=float)
+        u_x = np.asarray(session["sigx_std"], dtype=float)
+        u_y = np.asarray(session["sigy_std"], dtype=float)
 
         gamma_rel, beta_rel, beta_gamma = self.interface.get_beam_factors()
-
-        if not np.isfinite(beta_gamma) or beta_gamma <= 0:
-            raise RuntimeError("Invalid beam factors")
-
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        machine_name = getattr(self.interface, "machine_name", [])
-        coefficients_path = os.path.join(project_root, "MachineLearning", str(machine_name), str(quad_name), "Linear_Response_coefficients.npz")
-        dataset_path = os.path.join(project_root, "MachineLearning", str(machine_name), str(quad_name), "Linear_Response_dataset.npz")
-        linear = LinearResponse(coefficients_path=coefficients_path, dataset_path=dataset_path, beta_gamma=beta_gamma)
-        direct = linear.solve_twiss_from_measured_sigma2(screens=screens, sigma2_x=sigma2_x[0], sigma2_y=sigma2_y[0])
-
-        pred_x = np.asarray(direct["pred_x"], dtype=float)
-        pred_y = np.asarray(direct["pred_y"], dtype=float)
+        # R11, R12, R33, R34 from 4 test particles tracked from the quadrupole to the screens, no dataset needed
+        fit = estimate_twiss_use_linear_optics_start(self.interface, quad_name, screens, quad_setting_values, sigx, sigy, u_x, u_y, np.isfinite(sigx), np.isfinite(sigy), beta_gamma)
 
         result = {
             "screen0": screens[0],
             "quad_name": quad_name,
-            "emit_x_norm": direct["emit_x_norm"],
-            "emit_y_norm": direct["emit_y_norm"],
-            "emit_x_geom": direct["emit_x_norm"] / beta_gamma * 1e3, # um
-            "emit_y_geom": direct["emit_y_norm"] / beta_gamma * 1e3, # um
-            "beta_x0": direct["beta_x0"],
-            "alpha_x0": direct["alpha_x0"],
-            "beta_y0": direct["beta_y0"],
-            "alpha_y0": direct["alpha_y0"],
-            "fit_x_cost": 0.0,
-            "fit_y_cost": 0.0,
+            "emit_x_norm": fit["emit_x_norm"],
+            "emit_y_norm": fit["emit_y_norm"],
+            "emit_x_geom": fit["emit_x_norm"] / beta_gamma * 1e3, # um
+            "emit_y_geom": fit["emit_y_norm"] / beta_gamma * 1e3, # um
+            "beta_x0": fit["beta_x0"],
+            "alpha_x0": fit["alpha_x0"],
+            "beta_y0": fit["beta_y0"],
+            "alpha_y0": fit["alpha_y0"],
+            "fit_x_cost": fit["reduced_chi2_x"],
+            "fit_y_cost": fit["reduced_chi2_y"],
             "fit_x_found": True,
             "fit_y_found": True,
             "paused": False,
@@ -72,13 +40,13 @@ class LinearResponseEngine(AbstractComputingEngine):
             "fit_quadrupole_strength": False,
             "fit_quad_offset": False,
             "fit_quad_roll": False,
-            "quad_setting_0": quad_setting_0_readback,
+            "quad_setting_0": float(session.get("initial_quadrupole_setting", quad_setting_values[0])),
             "fit_method": self.name,
             "prediction_observable": "sigma2",
         }
 
         return {
             "result": result,
-            "pred_x": pred_x,
-            "pred_y": pred_y,
+            "pred_x": fit["pred_x"],
+            "pred_y": fit["pred_y"],
         }
