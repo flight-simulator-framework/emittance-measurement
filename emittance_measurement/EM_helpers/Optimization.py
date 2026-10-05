@@ -137,7 +137,7 @@ class Optimization:
 
         try:
             joint_fit = self._fit_6d(screens=screens, quad_name=quad_name, quad_setting_values=quad_setting_values, sigx_shots=sigx_shots, sigy_shots=sigy_shots,
-                                      x_shots=x_shots, y_shots=y_shots, sigxy_shots=sigxy_shots, bounds = bounds)
+                                      x_shots=x_shots, y_shots=y_shots, sigxy_shots=sigxy_shots, bounds = bounds, initial_quadrupole_setting_readback=float(quad_setting_0_readback))
 
             fit_x = {
                 "emit": joint_fit["emit_x_geom"],
@@ -301,7 +301,7 @@ class Optimization:
             "cost": float(best_cost) if np.isfinite(best_cost) else np.nan,
         }
 
-    def _fit_6d(self, screens, quad_name, quad_setting_values, sigx_shots, sigy_shots, bounds, x_shots=None, y_shots=None, sigxy_shots=None):
+    def _fit_6d(self, screens, quad_name, quad_setting_values, sigx_shots, sigy_shots, bounds, initial_quadrupole_setting_readback, x_shots=None, y_shots=None, sigxy_shots=None):
         # Beam size for every individual shot.
         sigma_x_shots = np.asarray(sigx_shots, dtype=float)
         sigma_y_shots = np.asarray(sigy_shots, dtype=float)
@@ -382,6 +382,7 @@ class Optimization:
             s_sigxy = np.nanstd(sigxy_shots_arr, axis=2, ddof=1)
             u_sigxy = np.where(n_sigxy_sum >= 2, s_sigxy / np.sqrt(n_sigxy_sum), fallback_u_sigxy)
             u_sigxy = np.where(np.isfinite(u_sigxy) & (u_sigxy > 1e-9), u_sigxy, fallback_u_sigxy)
+            u_sigxy = np.maximum(u_sigxy, 0.03 * sig_x * sig_y)  # the model (~1000 macroparticles, uncoupled incoming beam) cannot match sigxy better than this
             valid_sigxy = np.isfinite(sigxy_meas) & np.isfinite(u_sigxy) & (u_sigxy > 0) & (n_sigxy_sum >= 1)
         else:
             sigxy_meas = np.full(sig_x.shape, np.nan, dtype=float)
@@ -396,7 +397,6 @@ class Optimization:
         gamma_rel, beta_rel, beta_gamma = self.interface.get_beam_factors()
         bounds = dict(bounds or {})
         quad_setting_values = np.asarray(quad_setting_values, dtype=float)
-        initial_quadrupole_setting_readback = float(quad_setting_values[len(quad_setting_values)//2])
         deltas_for_fit = quad_setting_values / initial_quadrupole_setting_readback - 1.0
 
         params_order = ["emit_x_norm", "beta_x0", "alpha_x0", "emit_y_norm", "beta_y0", "alpha_y0"]
@@ -454,14 +454,18 @@ class Optimization:
                 raise
             return pred
 
+        def _centroid_block(pred_mean, meas, valid, u):
+            diff = np.where(valid, pred_mean - meas, np.nan)
+            return (diff - np.nanmean(diff, axis=0))[valid] / u[valid]
+
         def _residual_blocks(pred):
             blocks = [
                 (pred["sigma_x"] - sig_x)[valid_x] / u_x[valid_x],
                 (pred["sigma_y"] - sig_y)[valid_y] / u_y[valid_y],
             ]
             if self.fit_quad_offset:
-                blocks.append((pred["x_mean"] - dx_meas)[valid_dx] / u_dx[valid_dx])
-                blocks.append((pred["y_mean"] - dy_meas)[valid_dy] / u_dy[valid_dy])
+                blocks.append(_centroid_block(pred["x_mean"], dx_meas, valid_dx, u_dx))
+                blocks.append(_centroid_block(pred["y_mean"], dy_meas, valid_dy, u_dy))
             if self.fit_quad_roll:
                 blocks.append((pred["sigma_xy"] - sigxy_meas)[valid_sigxy] / u_sigxy[valid_sigxy])
             return blocks
