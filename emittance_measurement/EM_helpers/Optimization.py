@@ -330,6 +330,7 @@ class Optimization:
 
         u_x = np.where(np.isfinite(u_x) & (u_x > 1e-9), u_x, fallback_u_x)
         u_y = np.where(np.isfinite(u_y) & (u_y > 1e-9), u_y, fallback_u_y)
+        u_x, u_y = np.hypot(u_x, 0.05 * sig_x), np.hypot(u_y, 0.05 * sig_y)  # 5% systematic: screen calibration + model
 
         # u_x = np.ones_like(u_x)
         # u_y = np.ones_like(u_y)
@@ -375,6 +376,7 @@ class Optimization:
             dy_meas = np.full(sig_x.shape, np.nan, dtype=float)
             u_dy = np.full(sig_x.shape, fallback_u_dy, dtype=float)
             valid_dy = np.zeros(sig_x.shape, dtype=bool)
+        u_dx, u_dy = np.hypot(u_dx, 0.1), np.hypot(u_dy, 0.1)  # 0.1 mm systematic: calibration + drift during the scan
 
         if have_sigxy_data:
             n_sigxy_sum = np.sum(np.isfinite(sigxy_shots_arr), axis=2)
@@ -648,7 +650,7 @@ class Optimization:
                 if np.isfinite(f_try) and f_try < ls_best_cost[0]:
                     ls_best_cost[0] = float(f_try)
                     ls_best_params[0] = p_try.copy()
-                print(f"Least squares fit completed. Cost: {cost_unweighted:.4g}")
+                print(f"Least squares fit completed. Cost: {cost_unweighted:.4g}, chi2 (minimized): {np.sum(res_try.fun ** 2):.4g}")
                 if reason_to_stop[0] is not None:
                     print(f"Stopping LS: {reason_to_stop[0]}.")
             except StopIteration:
