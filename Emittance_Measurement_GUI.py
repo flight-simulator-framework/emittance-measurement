@@ -36,11 +36,19 @@ from emittance_measurement.EM_helpers.ScanPointSelection import ScanPointSelecti
 from emittance_measurement.EM_helpers.QuadrupoleModelUpdate import load_model_quadrupoles, quadrupole_tracking_model, quadrupole_status_metadata, save_quadrupole_status
 from emittance_measurement.EM_helpers.DeviceLists import DeviceLists, SPositionDelegate, device_name
 
-SCREEN_COLORS = ["#E69F00", "#0072B2", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442", "#000000"]  # colour-blind friendly
+SCREEN_COLORS = [
+    "#E69F00",  # orange
+    "#0072B2",  # blue
+    "#009E73",  # green
+    "#D55E00",  # red
+    "#CC79A7",  # reddish purple
+    "#56B4E9",  # light blue
+    "#F0E442",  # yellow
+    "#000000",  # black
+]
 
 
 def interface_settings(interface):
-    # INTERFACE_SETUP entry of this interface (unwrapping engine wrappers), with its machine name
     interface = getattr(interface, "interface", interface)
     for machine_name, machine_interfaces in INTERFACE_SETUP.items():
         for interface_defaults in machine_interfaces:
@@ -418,7 +426,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
     def _get_interface_initial_settings(self):
         return interface_settings(self.interface)
 
-    def _get_interface_units(self):  # unit of the beam sizes
+    def _get_interface_units(self):
         return (self._get_interface_initial_settings() or {}).get("units", {}).get("em_sigma_unit", "mm")
 
     def _get_interface_default_bounds(self):
@@ -822,7 +830,6 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         elif quad_strength_text != "-":
             quad_strength_text += " (nominal)"
         self.result_quad_strength.setText(quad_strength_text)
-        # parameter, unit, shown only when this fit option was on
         for name, unit, option in (("emit_x_norm", "mm·mrad", None), ("emit_y_norm", "mm·mrad", None), ("emit_x_geom", "nm·rad", None),
                                    ("emit_y_geom", "nm·rad", None), ("beta_x0", "m", None), ("alpha_x0", "", None), ("beta_y0", "m", None),
                                    ("alpha_y0", "", None), ("quad_dx0", "mm", "fit_quad_offset"), ("quad_dy0", "mm", "fit_quad_offset"),
@@ -1404,7 +1411,6 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
 
     @staticmethod
     def _set_combo_items(combo, items):
-        # replace the entries, keeping the current one when it is still there
         current = combo.currentText().strip()
         combo.blockSignals(True)
         combo.clear()
