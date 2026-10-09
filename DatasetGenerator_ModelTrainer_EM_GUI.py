@@ -1,59 +1,24 @@
 import emittance_measurement
 import RF_Track as rft # do not touch this
-import os, sys, time
+import os, sys
 from datetime import datetime
 import numpy as np
 try:
     pyqt_version = 6
     from PyQt6 import uic
-    from PyQt6.QtWidgets import (
-        QApplication, QMainWindow, QMessageBox, QVBoxLayout, QListWidgetItem, QStyledItemDelegate
-    )
-    from PyQt6.QtCore import Qt, QTimer, QRect, QObject, QThread, pyqtSignal
-    from PyQt6.QtGui import QPainter, QPixmap, QFont
+    from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
+    from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
+    from PyQt6.QtGui import QPixmap
 except ImportError:
     pyqt_version = 5
     from PyQt5 import uic
-    from PyQt5.QtWidgets import (
-        QApplication, QMainWindow, QMessageBox, QVBoxLayout, QListWidgetItem, QStyledItemDelegate
-    )
-    from PyQt5.QtCore import Qt, QTimer, QRect, QObject, QThread, pyqtSignal
-    from PyQt5.QtGui import QPainter, QPixmap, QFont
+    from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox
+    from PyQt5.QtCore import Qt, QObject, QThread, pyqtSignal
+    from PyQt5.QtGui import QPixmap
 from machine_interfaces.Backend.SaveOrLoad import SaveOrLoad
-from emittance_measurement.MachineLearning.ML_dataset import generate_dataset, _get_interface_initial_settings, append_dataset
+from emittance_measurement.MachineLearning.ML_dataset import _get_interface_initial_settings, append_dataset
+from emittance_measurement.EM_helpers.DeviceLists import DeviceLists, SPositionDelegate, device_name
 from emittance_measurement.MachineLearning.ML_train import TrainModel
-
-class SPositionDelegate(QStyledItemDelegate):
-    S_ROLE = int(Qt.ItemDataRole.UserRole) + 1
-    def paint(self, painter: QPainter, option, index):
-        painter.save()
-        try:
-            opt = option
-            self.initStyleOption(opt, index)
-            style = opt.widget.style() if opt.widget is not None else None
-            if style is not None:
-                opt_no_text = opt
-                opt_no_text.text = ""
-                style.drawControl(style.ControlElement.CE_ItemViewItem, opt_no_text, painter, opt.widget)
-
-            device_name = str(index.data(Qt.ItemDataRole.UserRole) or index.data(Qt.ItemDataRole.DisplayRole) or "")
-            s_text = str(index.data(self.S_ROLE) or "")
-            r = opt.rect
-            margin = 8
-            painter.setFont(opt.font)
-            painter.setPen(opt.palette.color(opt.palette.ColorRole.Text))
-
-            fm = painter.fontMetrics()
-            s_column_width = max(fm.horizontalAdvance("S = 000.000 m"), 90)
-
-            left_rect = QRect(r.left() + margin, r.top(), max(10, r.width() - s_column_width - 3 * margin), r.height())
-            right_rect = QRect(r.left() + r.width() - s_column_width - margin, r.top(), s_column_width, r.height())
-            elided_name = fm.elidedText(device_name, Qt.TextElideMode.ElideRight, max(10, left_rect.width()))
-            painter.drawText(left_rect, int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), elided_name)
-            if s_text:
-                painter.drawText(right_rect, int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft), s_text)
-        finally:
-            painter.restore()
 
 class DatasetGeneratorWorker(QObject):
     finished = pyqtSignal(object)
@@ -145,7 +110,7 @@ class ModelTrainerWorker(QObject):
         finally:
             self.done.emit()
 
-class MainWindow(QMainWindow, SaveOrLoad):
+class MainWindow(QMainWindow, DeviceLists, SaveOrLoad):
     def __init__(self, interface, dir_name):
         super().__init__()
         self.interface = interface
@@ -162,15 +127,10 @@ class MainWindow(QMainWindow, SaveOrLoad):
         self.progressBar.setValue(0)
         self.quadrupoles_list.setItemDelegate(SPositionDelegate(self.quadrupoles_list))
         self.screens_list.setItemDelegate(SPositionDelegate(self.screens_list))
-        self._optimization_t0 = None
-        self._scan_stop_requested = False
         self._is_running = False
         quadrupoles = list(self.interface.get_quadrupoles()["names"])
         screens_data = self.interface.get_screens()
-        screens = list(screens_data["names"])
-        screen_order, screen_order_type = self._get_element_order_values(screens)
-        screen_pairs = sorted(zip(screens, screen_order),key=lambda x: x[1] if np.isfinite(x[1]) else np.inf) # assigns S position to each screen
-        screens_sorted = [name for name, _ in screen_pairs] # only names
+        screens_sorted = self._sorted_by_s(screens_data["names"])
         self._show_s_values_and_device_lists(self.quadrupoles_list, quadrupoles)
         self._show_s_values_and_device_lists(self.screens_list, screens_sorted)
         self._set_progress(0)
@@ -180,9 +140,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
         self.pause_button.clicked.connect(self._pause_task)
         self.resume_button.clicked.connect(self._resume_task)
         self._pause_requested = False
-        self._stop_requested = False
-        self._ml_paused = False
-        self._ml_stopped = None
         self._generation_thread = None
         self._generation_worker = None
         self._is_training = False
@@ -193,88 +150,18 @@ class MainWindow(QMainWindow, SaveOrLoad):
         pass
 
     def _has_explicit_screen_selection(self):
-        for i in range(self.screens_list.count()):
-            item = self.screens_list.item(i)
-            if item is not None and item.isSelected():
-                return True
-        return False
+        return bool(self.screens_list.selectedItems())
 
     def _select_all_screens_in_gui(self):
         self.screens_list.blockSignals(True)
-        try:
-            for i in range(self.screens_list.count()):
-                item = self.screens_list.item(i)
-                if item is not None:
-                    item.setSelected(True)
-        finally:
-            self.screens_list.blockSignals(False)
-
+        self.screens_list.selectAll()
+        self.screens_list.blockSignals(False)
         self._filter_quadrupoles_in_gui()
 
     def _resume_task(self):
         if self._pause_requested:
             self.log("Resume is not yet implemented")
             self._pause_requested = False
-
-    def _stop_scan(self):
-        self._stop_generating()
-
-    def _get_element_order_values(self, names):
-        names = list(names)
-        s_positions = self._get_twiss_s_positions(names)
-        s_values = []
-        for value in s_positions:
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                value = np.nan
-            s_values.append(value)
-
-        if any(np.isfinite(s_values)):
-            return s_values, "S"
-        sequence_indices = None
-        try:
-            sequence_indices = self.interface.get_elements_indices(names)
-        except Exception:
-            sequence_indices = None
-        if sequence_indices is not None:
-            try:
-                sequence_indices = list(sequence_indices)
-            except TypeError:
-                sequence_indices = None
-        if sequence_indices is not None and len(sequence_indices) == len(names):
-            index_values = []
-            for value in sequence_indices:
-                try:
-                    value = float(value)
-                except (ValueError, TypeError):
-                    value = np.nan
-                index_values.append(value)
-            if any(np.isfinite(index_values)):
-                return index_values, "index"
-        return [np.nan] * len(names), ""
-
-    def _show_s_values_and_device_lists(self, list_widget, names):
-        names = list(names)
-        order_values, order_kind = self._get_element_order_values(names)
-        list_widget.clear()
-        for name, order_value in zip(names, order_values):
-            item = QListWidgetItem(str(name))
-            item.setData(Qt.ItemDataRole.UserRole, str(name))
-            list_widget.addItem(item)
-            try:
-                order_value = float(order_value)
-            except (ValueError, TypeError):
-                order_value = np.nan
-
-            if np.isfinite(order_value):
-                if order_kind == "index":
-                    order_text = f"index = {int(order_value)}"
-                else:
-                    order_text = f"S = {order_value:.3f} m"
-            else:
-                order_text = ""
-            item.setData(SPositionDelegate.S_ROLE, order_text)
 
     def _load_logo(self):
         if not hasattr(self, "logo_label"):
@@ -297,39 +184,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
         scaled = pixmap.scaledToHeight(80, transform_mode)
         self.logo_label.setPixmap(scaled)
         self.logo_label.setToolTip(logo_path)
-
-    def _set_progress(self, value):
-        self.progressBar.setRange(0, 100)
-        self.progressBar.setValue(int(max(0, min(100,value))))
-        QApplication.processEvents()
-
-    def _get_selection(self):
-        quadrupoles_all = []
-        for i in range(self.quadrupoles_list.count()):
-            item = self.quadrupoles_list.item(i)
-            quadrupoles_all.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
-
-        screens_all = []
-        for i in range(self.screens_list.count()):
-            item = self.screens_list.item(i)
-            screens_all.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
-
-        selected_quadrupoles = []
-        for i in range(self.quadrupoles_list.count()):
-            item = self.quadrupoles_list.item(i)
-            if item.isSelected():
-                selected_quadrupoles.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
-
-        selected_screens = []
-        for i in range(self.screens_list.count()):
-            item = self.screens_list.item(i)
-            if item.isSelected():
-                selected_screens.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
-
-        screens = selected_screens if selected_screens else screens_all
-        quadrupoles = selected_quadrupoles if selected_quadrupoles else quadrupoles_all
-
-        return quadrupoles, screens
 
     def _get_machine_ml_folder_name(self):
         interface_defaults = _get_interface_initial_settings(self.interface)
@@ -360,16 +214,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
         self._filter_quadrupoles_in_gui()
 
     def _filter_quadrupoles_in_gui(self):
-        if not hasattr(self, "quadrupoles_list") or self.quadrupoles_list is None:
-            return
-        if not hasattr(self, "screens_list") or self.screens_list is None:
-            return
-
-        previously_selected = []
-        for i in range(self.quadrupoles_list.count()):
-            item = self.quadrupoles_list.item(i)
-            if item.isSelected():
-                previously_selected.append(item.data(Qt.ItemDataRole.UserRole) or item.text())
+        previously_selected = [device_name(self.quadrupoles_list.item(i)) for i in range(self.quadrupoles_list.count()) if self.quadrupoles_list.item(i).isSelected()]
 
         if previously_selected:
             self._last_selected_quadrupoles = list(previously_selected)
@@ -409,16 +254,14 @@ class MainWindow(QMainWindow, SaveOrLoad):
         if valid_previous:
             for i in range(self.quadrupoles_list.count()):
                 item = self.quadrupoles_list.item(i)
-                item_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
-                if item_name in valid_previous:
+                if device_name(item) in valid_previous:
                     item.setSelected(True)
             self._last_selected_quadrupoles = list(valid_previous)
         elif upstream_to_first_screen_quads:
             closest_quad = max(upstream_to_first_screen_quads, key=lambda name: quad_pos[name])
             for i in range(self.quadrupoles_list.count()):
                 item = self.quadrupoles_list.item(i)
-                item_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
-                if item_name == closest_quad:
+                if device_name(item) == closest_quad:
                     item.setSelected(True)
                     self._last_selected_quadrupoles = [closest_quad]
                     break
@@ -426,8 +269,7 @@ class MainWindow(QMainWindow, SaveOrLoad):
             item = self.quadrupoles_list.item(0)
             if item is not None:
                 item.setSelected(True)
-                item_name = item.data(Qt.ItemDataRole.UserRole) or item.text()
-                self._last_selected_quadrupoles = [item_name]
+                self._last_selected_quadrupoles = [device_name(item)]
         else:
             self._last_selected_quadrupoles = []
 
@@ -486,7 +328,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(output_dir, "EM_dataset.npz")
         self.log(f"Dataset output directory: {output_dir}")
-        self._stop_requested = False
         self._is_running = True
         self._set_progress(0)
         self.progressBar.setFormat("Dataset generation: 0/0")
@@ -534,7 +375,6 @@ class MainWindow(QMainWindow, SaveOrLoad):
         QMessageBox.information(self, "Error", f"Error in generating dataset. {message}")
 
     def _stop_generating(self):
-        self._stop_requested = True
         self.log("Stopping dataset generation requested.")
         if self._generation_worker is not None:
             self._generation_worker.request_stop()
