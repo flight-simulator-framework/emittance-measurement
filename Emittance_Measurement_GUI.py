@@ -101,29 +101,34 @@ class OptimizationWorker(QObject):
     def _cut_session_to_detected_devices(self):
         if self.session is None:
             return None
+        if self.session.get("per_quad_sessions"):
+            return dict(self.session, per_quad_sessions=[self._cut_scan(scan) for scan in self.session["per_quad_sessions"]])
+        return self._cut_scan(self.session)
+
+    def _cut_scan(self, session):
         selected_screens = self.selected_screens
         if not selected_screens:
             raise ValueError("Select at least one screen")
-        session_screens = list(self.session.get("screens", []))
+        session_screens = list(session.get("screens", []))
         matched_screens = [self.interface.match_screen_name(screen, session_screens) for screen in selected_screens]
         selected_indices = [session_screens.index(screen) for screen in matched_screens if screen is not None]
         if not selected_indices:
             raise ValueError(
                 f"None of the selected screens {list(selected_screens)} are present in the loaded session data {session_screens}.")
-        cut_session = dict(self.session)
+        cut_session = dict(session)
         cut_session["screens"] = [session_screens[i] for i in selected_indices]
 
         for key in ("sigx_mean", "sigy_mean", "sigxy_mean", "sigx_std", "sigy_std", "sigxy_std", "sigx_shots",
                     "sigy_shots"):
-            values = np.asarray(self.session[key], dtype=float)
+            values = np.asarray(session[key], dtype=float)
             cut_session[key] = values[:, selected_indices, ...].tolist()
         for key in ("sigxy_shots", "x_mean", "y_mean", "x_std", "y_std", "x_shots", "y_shots"):
-            if key not in self.session:
+            if key not in session:
                 continue
-            values = np.asarray(self.session[key], dtype=float)
+            values = np.asarray(session[key], dtype=float)
             cut_session[key] = values[:, selected_indices, ...].tolist()
-        cut_session["images"] = [[self.session["images"][step_index][screen_index] for screen_index in selected_indices]
-                                 for step_index in range(len(self.session["images"]))]
+        cut_session["images"] = [[session["images"][step_index][screen_index] for screen_index in selected_indices]
+                                 for step_index in range(len(session["images"]))]
         cut_session["nscreens"] = len(selected_indices)
         reference_screen = cut_session.get("reference_screen")
         if reference_screen not in cut_session["screens"]:
@@ -201,7 +206,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         self.screen_on_plot.addItems(screens_sorted)
         self.start_button_scan.clicked.connect(lambda _checked=False: self._run_scan())
         self.stop_button_scan.clicked.connect(self._stop_scan)
-        self.quad_on_plot.currentIndexChanged.connect(lambda _=None: self._draw_live_scan(self.session))
+        self.quad_on_plot.currentIndexChanged.connect(lambda _=None: self._on_quad_on_plot_changed())
         self.screen_on_plot.currentIndexChanged.connect(lambda _=None: self._draw_live_scan(self.session))
         self._set_progress(0)
         self._clear_fit_panel()
@@ -245,13 +250,11 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         self.interface.bg_shots = int(self.background_shots.value())
         self.background_shots.valueChanged.connect(self._on_bg_shots_changed)
         self.show_beamline_button.clicked.connect(self._show_beamline)
-        self.download_quads_button.setEnabled(not self.is_simulation)
-        if not self.is_simulation:
-            self.download_quads_button.clicked.connect(self._download_all_quads_status)
+        self.download_quads_button.clicked.connect(self._download_all_quads_status)
         self.quadrupoles_status = None
         self.model_quadrupoles_status = None
-        self._quadrupoles_status_payload = None
-        self._model_quadrupoles_status_payload = None
+        self._quadrupoles_status_data = None
+        self._model_quadrupoles_status_data = None
         self.load_machine_status_button.clicked.connect(self._load_model_quadrupoles_status)
         try:
             quadrupole_tracking_model(self.interface)
@@ -313,19 +316,19 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
             output_file_name = os.path.join(target_dir, "quadrupoles_status.npz")
             quadrupoles = list(getattr(self.interface, "quadrupoles", []))
             self.log(f"Reading {len(quadrupoles)} quadrupole currents from the machine.")
-            payload = dict(self.interface.get_quadrupoles(names=quadrupoles))
-            payload["captured_at_utc"] = datetime.now(timezone.utc).isoformat()
-            payload["source_interface"] = self.interface.get_name()
+            data = dict(self.interface.get_quadrupoles(names=quadrupoles))
+            data["captured_at_utc"] = datetime.now(timezone.utc).isoformat()
+            data["source_interface"] = self.interface.get_name()
             momentum = getattr(getattr(self.interface, "tracking_interface", self.interface), "Pref", None)
             if momentum is not None and np.isfinite(float(momentum)):
-                payload["reference_momentum_MeV_c"] = float(momentum)
-            output_file_name = save_quadrupole_status(payload, output_file_name)
-            self._quadrupoles_status_payload = payload
-            self.quadrupoles_status = quadrupole_status_metadata(payload, output_file_name)
+                data["reference_momentum_MeV_c"] = float(momentum)
+            output_file_name = save_quadrupole_status(data, output_file_name)
+            self._quadrupoles_status_data = data
+            self.quadrupoles_status = quadrupole_status_metadata(data, output_file_name)
             self.quadrupoles_status["saved_path"] = output_file_name
             if self.session is not None:
                 self.session["quadrupoles_status"] = dict(self.quadrupoles_status)
-            self.log(f"Saved quadrupole readbacks to {output_file_name} at {payload['captured_at_utc']}.")
+            self.log(f"Saved quadrupole readbacks to {output_file_name} at {data['captured_at_utc']}.")
 
         except Exception as e:
             QMessageBox.information(self, "Save quadrupoles status",
@@ -333,8 +336,9 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
             return
 
     def _load_model_quadrupoles_status(self):
+        model = quadrupole_tracking_model(self.interface)
         print("Quadrupoles currents before RFTrack model update:")
-        print(self.interface.get_quadrupoles()["bact"])
+        print(model.get_quadrupoles()["bact"])
         if self._is_scanning or self._is_optimizing:
             QMessageBox.information(self, "Load quadrupoles status",
                                     "Stop the scan or fit before changing the model quadrupoles.")
@@ -345,31 +349,31 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         if not source_path:
             return
         try:
-            payload, metadata = load_model_quadrupoles(self.interface, source_path)
+            data, metadata = load_model_quadrupoles(self.interface, source_path)
         except Exception as e:
             QMessageBox.warning(self, "Load quadrupoles status", str(e))
             return
-        self._model_quadrupoles_status_payload = payload
+        self._model_quadrupoles_status_data = data
         self.model_quadrupoles_status = metadata
         if self.session is not None:
             self.session["model_quadrupoles_status"] = dict(metadata)
         print(f"Loaded {metadata['quadrupole_count']} quadrupoles into the RF-Track model")
 
         print("Quadrupoles currents after RFTrack model update:")
-        print(self.interface.get_quadrupoles()["bact"])
+        print(model.get_quadrupoles()["bact"])
 
     def _preserve_quadrupole_status_files(self, target_dir):
         for attribute, filename in (("quadrupoles_status", "quadrupoles_status.npz"),
                                     ("model_quadrupoles_status", "model_quadrupoles_status.npz")):
-            payload = getattr(self, f"_{attribute}_payload", None)
+            data = getattr(self, f"_{attribute}_data", None)
             metadata = getattr(self, attribute, None)
-            if payload is None or metadata is None:
+            if data is None or metadata is None:
                 continue
             target_path = os.path.join(target_dir, filename)
             previous_path = metadata.get("saved_path")
             if previous_path and os.path.dirname(previous_path) == os.path.abspath(target_dir):
                 target_path = previous_path
-            saved_path = save_quadrupole_status(payload, target_path)
+            saved_path = save_quadrupole_status(data, target_path)
             metadata["saved_path"] = saved_path
             if self.session is not None:
                 self.session[attribute] = dict(metadata)
@@ -389,7 +393,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         if self.beta_eps_evolution is None:
             self.beta_eps_evolution = BeamEvolution(interface=self.interface, parent=self, screens=screens)
         session = self.session if isinstance(self.session, dict) else {}
-        self.beta_eps_evolution._display_beam_evolution(screens=screens, session=session, result=session.get("optimization_result"))
+        self.beta_eps_evolution._display_beam_evolution(screens=screens, session=(session.get("per_quad_sessions") or [session])[0], result=session.get("optimization_result"))
         self.beta_eps_evolution.show()
         self.beta_eps_evolution.raise_()
         self.beta_eps_evolution.activateWindow()
@@ -518,6 +522,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
     def _set_default_quad_strength_bounds_from_session(self, session):
         if session is None:
             return
+        session = (session.get("per_quad_sessions") or [session])[0]
         current_0 = float(session.get("current_0", np.nan))
         if not np.isfinite(current_0) or np.isclose(current_0, 0.0):
             scanned_currents = np.asarray(session.get("current_values", []), dtype=float)
@@ -705,6 +710,13 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
             widget.setEnabled(not is_linear_mode)
         self._update_additional_fit_controls()
 
+    def _on_quad_on_plot_changed(self):
+        result = (self.session or {}).get("optimization_result")
+        if result is None or "per_quad" not in result:
+            return self._draw_live_scan(self.session)
+        self._update_fit_panel(result)
+        self._plot_fit_overlay(self.session["optimization_pred_x"], self.session["optimization_pred_y"], result, screens=self.session["optimization_screens"])
+
     def _on_show_all_screens_toggled(self, checked):
         self.screen_on_plot.setEnabled(not bool(checked))
         self._draw_live_scan(self.session)
@@ -804,6 +816,10 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
 
     def _update_fit_panel(self, result):
         self.result_quad.setText(str(result["quad_name"]))
+        if "per_quad" in result:
+            quad_name = self.quad_on_plot.currentText().strip()
+            self.result_quad.setText(f"{quad_name} (Twiss at {result['quad_name']})")
+            result = dict(result, **result["per_quad"][quad_name], quad_name=quad_name)
 
         def fmt_value(value, suffix=""):  # formats numbers to text
             try:
@@ -905,14 +921,18 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
     def _plot_fit_overlay(self, pred_x, pred_y, result=None, screens=None, fit_quad_setting_values=None):
         if self.session is None:
             return
-        plotted_session = self._session_without_excluded_points(self.session)
-        session_screens = list(self.session.get("screens", []))
+        plotted_session = self._get_session_for_selected_quad(self._session_without_excluded_points(self.session))
+        session_screens = list(plotted_session.get("screens", []))
         if screens is None:
             screens = session_screens
         else:
             screens = [screen for screen in screens if screen in session_screens]
         pred_x = np.asarray(pred_x, dtype=float)
         pred_y = np.asarray(pred_y, dtype=float)
+        if self.session.get("per_quad_sessions"):
+            start = sum(len(scan["quad_setting_values"]) for scan in self.session["per_quad_sessions"][:self.quad_on_plot.currentIndex()])
+            rows = slice(start, start + len(plotted_session["quad_setting_values"]))
+            pred_x, pred_y = pred_x[rows], pred_y[rows]
         prediction_observable = str((result or {}).get("prediction_observable", "sigma"))
         if prediction_observable not in {"sigma", "sigma2"}:
             raise ValueError(f"Unknown prediction observable: {prediction_observable}")
@@ -944,7 +964,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
                 np.maximum(pred_y[:, prediction_i], 0.0))
             ax2.plot(fit_current_values, fit_y, "-", color=color, linewidth=2.0, label=f"{screen} fit")
 
-        self._finish_scan_axes(ax1, ax2, self.session.get('quad_name', '-'), self.session.get("sigma_unit", self._get_interface_units()), legend_size=7)
+        self._finish_scan_axes(ax1, ax2, plotted_session.get('quad_name', '-'), plotted_session.get("sigma_unit", self._get_interface_units()), legend_size=7)
 
     def _get_session_data_from_database(self):
         self._excluded_points = set()
@@ -1120,7 +1140,11 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         if session_was_missing:
             self._set_default_quad_strength_bounds_from_session(self.session)
         bounds = self._get_bounds_from_gui()
-        if "quad_setting_0" in bounds:  # GUI bounds are in A, the fit works in the interface's quadrupole unit
+        if "quad_setting_0" in bounds and self.session.get("per_quad_sessions"):
+            ratio = np.asarray(bounds.pop("quad_setting_0")) / float(self.session["per_quad_sessions"][0]["current_0"])
+            for scan in self.session["per_quad_sessions"]:
+                bounds[f"quad_setting_0:{scan['quad_name']}"] = sorted(self.current_to_quad_setpoint(scan["quad_name"], current, scan["quad_value_unit"]) for current in ratio * float(scan["current_0"]))
+        elif "quad_setting_0" in bounds:  # GUI bounds are in A, the fit works in the interface's quadrupole unit
             quad_name = self._get_session_for_selected_quad(self.session)["quad_name"]
             bounds["quad_setting_0"] = sorted(self.current_to_quad_setpoint(quad_name, current, self._quadrupole_value_unit()) for current in bounds["quad_setting_0"])
         if self._is_optimizing:
@@ -1179,9 +1203,11 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
         self.session["optimization_result"] = result
         self.session["optimization_pred_x"] = pred_x.tolist()
         self.session["optimization_pred_y"] = pred_y.tolist()
+        self.session["optimization_screens"] = optimization_screens
         self._update_fit_panel(result)
         self._plot_fit_overlay(pred_x, pred_y, result, screens=optimization_screens, fit_quad_setting_values=fit_quad_setting_values)
-        self.save_emittance_measurement_session(session=self.session, is_fit_quad_strength_checked=bool(
+        saved_session = dict(self.session["per_quad_sessions"][-1], optimization_result=result) if self.session.get("per_quad_sessions") else self.session
+        self.save_emittance_measurement_session(session=saved_session, is_fit_quad_strength_checked=bool(
             self.fit_quadrupole_strength_checkbox.isChecked()), bounds=self._get_bounds_from_gui(),
                                                 target_dir=getattr(self, "_general_session_dir", None))
         self._set_progress(100)
@@ -1235,7 +1261,7 @@ class MainWindow(QMainWindow, DeviceLists, QuadrupoleScan):
 
     def _run_scan(self, resume=None):
         resume_states_dir = resume["states_dir"] if resume else None
-        quadrupoles, _ = self._get_selection()
+        quadrupoles = self._sorted_by_s(self._get_selection()[0])
         if resume:
             quadrupoles = list(resume["quadrupoles"])
         if len(quadrupoles) == 0:

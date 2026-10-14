@@ -10,6 +10,12 @@ class EmittanceComputingEngineSelector:
         quad_name = str(session.get("quad_name", ""))
         screens = list(session.get("screens", []))
 
+        if session.get("per_quad_sessions") and method in ("Linear R-response model", "Machine learning model"):
+            if info_callback:
+                info_callback(f"{method} fits one quadrupole only.")
+            if fallback_callback: fallback_callback()
+            method = "RFTrack tracking"
+
         if method == "Linear R-response model":
             if info_callback:
                 info_callback("Using direct linear R-response model.")

@@ -2,37 +2,40 @@ import os
 from datetime import datetime, timezone
 import numpy as np
 
+def quadrupole_value_unit(quadrupoles):
+    return str(np.asarray(quadrupoles.get("value_unit", "1/m")).item())
+
+
 def quadrupole_tracking_model(interface):
     model = getattr(interface, "tracking_interface", None)
     if model is None and getattr(interface, "is_simulation", False):
         model = interface
     if model is None or not getattr(model, "is_simulation", False):
         raise ValueError("A simulation interface is required to load model quadrupoles.")
-    if model.get_name() != "CLEAR_RFT":
-        raise ValueError("Loading quadrupole current snapshots is currently supported for CLEAR RF-Track.")
     return model
 
 
 def validate_quadrupole_status(payload, model):
-    unit = np.asarray(payload.get("value_unit", ""))
-    if unit.size != 1 or str(unit.item()) != "A":
-        raise ValueError("The quadrupole snapshot must declare value_unit='A'.")
+    unit, model_unit = quadrupole_value_unit(payload), quadrupole_value_unit(model.get_quadrupoles())
+    if unit != model_unit:
+        raise ValueError(f"The quadrupole snapshot is in {unit}, but the RF-Track model sets quadrupoles in {model_unit}.")
     names_array = np.asarray(payload.get("names", []))
     if names_array.ndim != 1 or not names_array.size:
-        raise ValueError("The snapshot must contain a nonempty one-dimensional names array.")
+        raise ValueError("The snapshot must contain a nonempty names array.")
     names = [str(name) for name in names_array.tolist()]
     if len(set(names)) != len(names):
         raise ValueError("The quadrupole snapshot contains duplicate names.")
     unknown = sorted(set(names) - set(model.quadrupoles))
     if unknown:
         raise ValueError(f"Quadrupoles not present in the RF-Track model: {', '.join(unknown)}")
-    readback_fields = [field for field in ("iact", "bact") if field in payload]
+    fields = ("iact", "bact") if unit == "A" else ("bact",)
+    readback_fields = [field for field in fields if field in payload]
     if not readback_fields:
-        raise ValueError("The snapshot needs measured currents in iact or bact.")
+        raise ValueError(f"The snapshot needs measured values in {' or '.join(fields)}.")
     for field in readback_fields:
         values = np.asarray(payload[field], dtype=float)
         if values.ndim != 1 or values.size != len(names) or not np.all(np.isfinite(values)):
-            raise ValueError(f"{field} must contain one finite current per quadrupole.")
+            raise ValueError(f"{field} must contain one finite value per quadrupole.")
     field = readback_fields[0]
     return names, np.asarray(payload[field], dtype=float).copy(), field
 
@@ -47,7 +50,7 @@ def quadrupole_status_metadata(payload, source_path):
         "captured_at_utc": captured_at or None,
         "legacy_without_timestamp": not bool(captured_at),
         "reference_momentum_MeV_c": momentum,
-        "value_unit": str(np.asarray(payload.get("value_unit", "")).item()),
+        "value_unit": quadrupole_value_unit(payload),
         "quadrupole_count": int(np.asarray(payload.get("names", [])).size),
     }
 

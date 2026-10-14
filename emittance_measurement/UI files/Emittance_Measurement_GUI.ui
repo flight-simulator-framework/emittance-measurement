@@ -118,7 +118,7 @@ QToolButton#quad_status_tooltip:hover {
             <item>
              <widget class="QToolButton" name="machine_status_tooltip">
               <property name="toolTip">
-               <string>Pick a file with saved quadrupole currents. RF-Track will be updated with those values, so that both real machine and simulation have the same optics.</string>
+               <string>Pick a file with saved quadrupole settings. RF-Track will be updated with those values, so that both real machine and simulation have the same optics.</string>
               </property>
               <property name="styleSheet">
                <string notr="true">QToolButton#machine_status_tooltip{

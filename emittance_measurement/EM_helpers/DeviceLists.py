@@ -98,7 +98,7 @@ class DeviceLists:
             items = (widget.item(i) for i in range(widget.count()))
             return [device_name(item) for item in items if item.isSelected() or not selected_only]
         return (names(self.quadrupoles_list, True) or names(self.quadrupoles_list, False),
-                names(self.screens_list, True) or names(self.screens_list, False))
+                names(self.target_list, True) or names(self.target_list, False))
 
     def _set_progress(self, value):
         self.progressBar.setRange(0, 100)
